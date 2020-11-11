@@ -1,14 +1,14 @@
 # 待解决问题
 
-### 本地gitbook
+## 本地gitbook
 
-#### 位置
+### 位置
 
 ```text
 /Users/cg/Documents/my-note-book
 ```
 
-#### 现状
+### 现状
 
 1. 没有建立git仓库。
 2. 使用`gitbook serve`启动。
