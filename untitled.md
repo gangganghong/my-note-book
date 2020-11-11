@@ -14,7 +14,7 @@ brew install nvm
  Super-powers are granted randomly so please submit an issue if you're not happy with yours.
 {% endhint %}
 
-使用`nvm -v`
+使用 `nvm -v` 查看nvm是否安装成功。
 
 ### 安装node
 
@@ -31,5 +31,11 @@ nvm install node
 
 ```bash
 nvm ls-remote
+```
+
+### 切换版本
+
+```bash
+nvm use 4.2.4
 ```
 
