@@ -6,12 +6,12 @@ description: nvm 是一款管理node版本的工具，能很方便地切换电�
 
 ## 安装nvm
 
-```
+```text
 brew install nvm
 ```
 
 {% hint style="info" %}
- Super-powers are granted randomly so please submit an issue if you're not happy with yours.
+Super-powers are granted randomly so please submit an issue if you're not happy with yours.
 {% endhint %}
 
 使用 `nvm -v` 查看nvm是否安装成功。

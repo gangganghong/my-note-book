@@ -1,8 +1,6 @@
-# Introduction
+# 打包安卓App
 
-Hello
-
-### 产生签名的key
+## 产生签名的key
 
 ```text
 # 在产生的时候需要提供密钥和存储密码，后续会用到
@@ -10,7 +8,7 @@ keytool -genkey -v -keystore my-release-key.keystore -alias my-key-alias -keyalg
 mv my-release-key.keystore android/app/
 ```
 
-### 设置秘钥密码
+## 设置秘钥密码
 
 修改android/gradle.properties文件。
 
@@ -63,9 +61,9 @@ android {
 
 下图中的红框中的代码，是新增的代码。
 
-![](.gitbook/assets/1-1.png)
+![](../.gitbook/assets/1-1.png)
 
-### 生成apk
+## 生成apk
 
 进入`/Users/cg/data/code/react-native/react-im/android`目录执行下面的命令：
 
