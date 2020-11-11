@@ -9,7 +9,7 @@
 
 ## React Native 笔记
 
-* [打包安卓App](react-native-bi-ji/readme.md)
+* [打包安卓App](react-native-bi-ji/react-native-bi-ji.md)
 
 ## 杂项
 
