@@ -17,7 +17,7 @@ BFD: /Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/tc
 
 在我的macbook上，lldb命令直接可用。
 
-使用方法是：
+### 使用方法
 
 ```text
 # 使用 -g ，调试的时候显示C代码而不是汇编代码。
@@ -43,7 +43,9 @@ exit
 
 ### 资料
 
-{% page-ref page="lldb.md" %}
+\[LLDB十分钟快速教程\]\([https://zhuanlan.zhihu.com/p/106415182](https://zhuanlan.zhihu.com/p/106415182)\)
+
+
 
 
 
