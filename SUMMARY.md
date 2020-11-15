@@ -6,6 +6,7 @@
 ## 我的电脑
 
 * [nvm使用](wo-de-dian-nao/nvm.md)
+* [常用linux命令](wo-de-dian-nao/chang-yong-linux-ming-ling.md)
 
 ## React Native 笔记
 
@@ -18,8 +19,4 @@
 ## C语言
 
 * [lldb](c-yu-yan/lldb.md)
-
----
-
-* [常用linux命令](chang-yong-linux-ming-ling.md)
 
