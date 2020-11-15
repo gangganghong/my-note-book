@@ -19,3 +19,7 @@
 
 * [lldb](c-yu-yan/lldb.md)
 
+---
+
+* [常用linux命令](chang-yong-linux-ming-ling.md)
+
