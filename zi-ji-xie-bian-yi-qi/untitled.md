@@ -502,3 +502,459 @@ Target 0: (tcc) stopped.
    1. lldb在哪个位置执行了n，程序就退出了，不代表，接下来那步就出了问题。n会一直执行完下面的所有代码（有机会再验证）。
    2. 我怎么知道它的n是这个意思？
 
+## 功能
+
+### 多个参数
+
+#### char ef
+
+如何匹配下面的代码？
+
+```shell
+int main(int argc,char ef,){int ab;if(true)ab=5;}
+```
+
+下面的规则，不行。
+
+```basic
+func:
+	| identifier identifier '(' params ')' block	{ $$ = createFunction($1, $2, $4, $6); }
+	;
+
+//void *addToParamNodeList(struct ast *param, struct paramNode *paramNodeListHeader)
+params:
+	| params  param ','	{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+//	| param			{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+	;
+
+//createParam(char *dataType, char *name)
+param:
+	| identifier identifier		{ $$ = createParam($1, $2); }
+	;
+```
+
+已经尝试过的方案。
+
+```
+# A
+params:
+	| params  param ','	{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+//	| param			{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+	;
+	
+# B	
+params:
+  | params  param ','	{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+  //	| param			{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+  ;
+  
+ # C 
+ params:
+	| param  ','	params { addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+//	| param			{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+	;
+```
+
+打算怎么办？
+
+1. 搜索？
+
+   1. 非上策。这个问题比较依赖场景，搜索适合有固定场景和解决方案的问题，例如，编译器的报错信息，vue发送http请求等。
+
+2. 看解析sql的demo D？
+
+   1. 上面尝试过的方案中，我已经在规则中模仿D了，不成功。
+   2. 也不好模仿，action不同。
+
+3. 看bison书？
+
+   1. 大海捞针。
+
+4. 凭直觉换方案，然后一次次尝试，试图感动编译器？
+
+   1. 这是我一贯的做法。绝对不行。
+   2. 没想到方法。用直觉试了7分钟，不行。
+
+5. 确定：下层的返回结果必须是构成上层的字符串吗，在循环中？比如：
+
+   ```basic
+   select_expr_list: select_expr { $$ = 1; }
+       | select_expr_list ',' select_expr {$$ = $1 + 1; }
+       | '*' { emit("SELECTALL"); $$ = 1; }
+       ;
+   
+   select_expr: expr opt_as_alias ;
+   ```
+
+我的调试方法：
+
+1. 先分析下面这样的简化版字符串
+
+   ```basic
+   int argc, char argv
+   ```
+
+   我更改了底层的返回结果，不行。初步认为，这是规则匹配与action的返回结果无关。
+
+问题解决了，解决了问题，关键在于 /Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5.l 中没对逗号设置匹配规则，
+
+```basic
+"+" |
+"-" |
+"*" |
+"/" |
+"|" |
+"(" |
+")" |
+"=" |
+"{" |
+"}" |
+"," |
+";"    {  return yytext[0]; }
+```
+
+之前搞错了导致bug的原因。
+
+解决这个问题的关键方法是：先处理简化的问题，定位原因。
+
+这个问题，大概耗费时间1个小时。虽然列出了几个思路，但我仍然犯了”凭直觉调试“的错误。
+
+调试，有多浪费时间，又有多么的无重大价值，我很清楚。所以，再次提醒自己，先有思路，再调试，不允许凭直觉调试。
+
+##### 小结
+
+在bison中，有下面的规则：
+
+1. $$ 必须与标识符F的数据类型一致，F的数据类型用%type定义。
+
+2. action的结果不参与规则，不影响规则匹配数据。
+
+3. action的结果，会参与上一层的action的运算。
+
+   ```basic
+   test:
+   	| tparam ',' test		{ printf("test=%s\n", $1); $$ = contactStr($1, " ", $3); }
+   	| tparam			{ $$ = $1; }
+   	;
+   tparam:
+   	| identifier identifier	 { printf("tpamra=%s %s\n", $1->stringValue, $2->stringValue); $$ = contactStr($1->stringValue, " ", $2->stringValue);}
+   	;
+   ```
+
+   tparam参与了test的action的运算，即，tparam这条规则的$$参与了test的action的运算。
+
+##### 测试
+
+
+
+1. 测试	`int main(int argc,char ef, double te){int ab;if(true)ab=5;}` ，使用`lldb` 命令：
+
+   ```shell
+   p *root->paramListHead->next->param
+   p *root->paramListHead->next->next->param
+   p *root->paramListHead->next->next->next->param
+   ```
+
+   结果符合预期。
+
+#### 指针参数
+
+todo
+
+#### int &ab
+
+todo
+
+### 多变量
+
+##### int ab
+
+还算顺利。遇到一个因粗心导致的单链表创建错误问题。
+
+处理逻辑和多参数非常相似，先对比了匹配规则和action，确定无误后，对比action使用的函数的具体内容。比较遗憾的是，没能很快看出单链表错误，而是对比正确代码后，才发现创建函数体变量的单链表代码有误。
+
+1. 测试
+
+   输入数据
+
+   ````
+   int main(int argc,char ef, double te){int ab;int mf;char hi;if(true)ab=5;}
+   ````
+
+   使用的lldb命令
+
+   ```shell
+   int main(int argc,char ef, double te){int ab;int mf;char hi;if(true)ab=5;}
+   ```
+
+耗费时间34分。
+
+其他类型参数，再处理。
+
+### 能解析包含换行符的代码
+
+正常的代码包含缩进和换行，必须支持这个功能。
+
+我用`##`来代替回车键作为输入测试代码时的结束标志。
+
+```basic
+		/*/Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5.l*/
+"##"        { return EOL; }
+[\r\n]		{  }
+    /*       [\r\n] { return EOL; }      */
+
+```
+
+
+
+在flex中写注释，搜索资料，正确的方法是：
+
+```
+   # 行首必须有空白
+   /*       [\r\n] { return EOL; }      */
+```
+
+耗费时间12分。以为行首必须有空白是在/*内部空白。这类问题，就应该直接搜索解决。
+
+1. 测试
+
+输入数据：
+
+```c
+int main(int argc, char ef, double te) {
+    int ab;
+    int mf;
+    char hi;
+    if (true)ab = 5;
+}
+```
+
+```c
+int main(int argc, char ef, double te) {
+    int ab;
+    int mf;
+    char hi;
+    if (true){ab = 5;}
+}
+```
+
+
+
+使用的lldb命令
+
+```shell
+p  *root->funcBody->funcStmtsListHead->next->funcStmtNode->con->l
+p  *root->funcBody->funcStmtsListHead->next->funcStmtNode->tl->l
+p  *root->funcBody->funcStmtsListHead->next->funcStmtNode->tl->r   
+p  *root->paramListHead->next->param  
+p  *root->paramListHead->next->next->param 
+p  *root->paramListHead->next->next->next->param     
+p *root->funcBody->funcVariableListHead->next->funcVariable    
+p  *root->funcBody->funcVariableListHead->next->next->funcVariable  
+p  *root->funcBody->funcVariableListHead->next->next->next->funcVariable
+```
+
+正常。
+
+耗费时间14分。
+
+### 包含多条语句的if结构
+
+thenBody 改成只有一个成员，每个成员是一个表达式，二元表达式。
+
+elseBody也这样处理。
+
+改规则，构思，多条语句，需要循环，好像总差点什么，不能很快写出来。
+
+耗费时间25分。
+
+写方案。
+
+```basic
+// /Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5.y
+then:{}
+	| '{' exprs '}'				{ $$ = $2; }
+	| exprs					{ $$ = $1; }
+	;
+
+exprs:
+	| expr ';' exprs			{ }
+	;1
+```
+
+在括号等内部的部分，作为一个整体提取出来，处理起来更方便。
+
+thenBody 改成只有一个成员，每个成员是一个表达式，二元表达式。
+
+1. struct ast新增一个成员，exprNodeListHeader
+2. 新增结构体，struct exprNode，两个成员，一个是struct ast *expr，另一个是struct exprNode *next。（边写边忘）。
+3. 新增全局变量，struct exprNode *exprNodeListHeader，struct exprNode *exprNodeCur。
+
+#### 测试
+
+简化版
+
+输入数据：
+
+```c
+if (true) {
+  ab = 5;
+  mf = 89;
+  hi = 94;
+}
+```
+
+使用规则stmt测试，直接看输出结果。
+
+```basic
+compilation_unit:{}
+	| test	EOL			{ printf("test = %s\n", $1); }
+//	| IF	EOL		   	{ printf("if = %s\n", $1);	}
+//	| ELSE	EOL		   	{ printf("else = %s\n", $1);	}
+//	| IF con EOL compilation_unit			{ dump($2); }
+	| func EOL			{  newCode($1);				}
+	| stmt				{  newCode($1); }
+	
+stmt:
+	| then		{ $$ = $1; }
+	| IF con then			{ $$ = createIfNode($2, $3, NULL); }
+	| IF con then EOL		{ $$ = createIfNode($2, $3, NULL); }
+	| IF con then ELSE else_body EOL		{ $$ = createIfNode($2, $3, $5); }
+	;
+
+con:							{}
+	| expr						{ $$ = createCon( $1);}
+
+//	| '(' IDENTIFIER '=' NUMBER	')'		{ $$ = createCon('+', $2, $4); }
+//	| '(' IDENTIFIER '=' IDENTIFIER	')'		{ $$ = createCon('='); }
+	;
+//
+then:{}
+	| '{' exprs '}'				{ $$ = $2;  printf("exprs = %s\n", $2); }
+	| exprs					{ $$ = $1; printf("exprs = %s\n", $1); }
+	;
+
+exprs:
+	| expr ';' exprs			{ }
+	;
+```
+
+需使用下面的打印函数才能看到结果
+
+```c
+// /Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5funcs.c
+void printExpr(struct ast *expr){
+    char nodeType = expr->nodeType;
+    if(nodeType == 'e'){
+        printExpr(expr->l);
+        printExpr(expr->r);
+    }else{
+        // todo 先简化处理，固定表达式是 ab=5，右边是整型。
+        printf("expr = %s %c %d\n", expr->l->stringValue, expr->nodeType, expr->r->numberValue);
+    }
+}1
+```
+
+输出
+
+```c
+chugangdeMacBook-Pro:golang cg$ ./tcc
+if (true) {
+        ab = 5;
+        mf = 89;
+        hi = 94;
+    }
+expr = hi = 94
+expr = mf = 89
+expr = ab = 5
+exprs = =
+```
+
+证明匹配规则是正确的。
+
+时间消耗50分。原因是，使用错误了验证方法，即错误的打印方法，该方法报错，时间花在了寻找错误原因上。没找到原因。后来，我直接放弃了这种验证方法，采用目前的验证方法。
+
+不是必须解决的问题，可以跳过。解决了它，也没啥收益。
+
+目前这个输出结果，已经可以了。后续可以在action中把这些表达式加入表达式单链表。
+
+遇到问题时，调试，思路仍然不够清晰。如果一开始就选择第二种调试方法，那么，只需要10分钟，而不是50分钟！
+
+有什么办法能够把测试代码分离出去，以便于维护和永久保存吗？
+
+##### 验证elseBody规则
+
+输入数据
+
+```c
+if (true) {
+ab = 5;
+mf = 89;
+hi = 94;
+}else{
+_ab = 5;
+mf_ = 89;
+h_i = 94;
+}##
+```
+
+基本通过了。测试输出结果让我很迷惑，第一次只能输出thenBody内的表达式，需要输出回车键后才能输出elseBody内的表达式。
+
+耗费时间20分。原因，输出结果让我很疑惑。我因此多次重复执行。时间耗费在测试。
+
+##### 验证
+
+测试完整的if..else...结构。
+
+完整版
+
+输入数据
+
+```c
+int main(int argc, char ef, double te) {
+    int ab;
+    int mf;
+    char hi;
+    if (true) {
+        ab = 5;
+        mf = 89;
+        hi = 94;
+    }
+}
+```
+
+
+
+耗费了很多时间才调试正确。约2个小时。
+
+###### 小结
+
+调试很不成功。一直强调，先有明确的思路，然后再运行代码。一遇到无头绪的问题，我就随意调试起来。运行代码，是件非常消耗时间的事情。
+
+1. 断点调试的时候，我觉得，两次确定addToThenExprNodeList有没有问题，是能做到的。我试了很多次。
+
+   ```c
+   if (thenExprNodeListHeader->next == NULL) {
+     	thenExprNodeListHeader->next = thenExprNodeCur;
+   }
+   ```
+
+   一次断点运行，就应该看出是这里出了问题。
+
+2. 修改好addToThenExprNodeList后，thenExprNodeListHeader->next  无问题。
+3. 查看 `p  *root->funcBody->funcStmtsListHead->next->funcStmtNode` ，con值正常，说明，createIfNode无问题。
+4. 查看 `p  *root->funcBody->funcStmtsListHead->next->funcStmtNode->elseExprNodeListHeader->next` ，异常。说明问题出在 createIfNode 中对`elseExprNodeListHeader` 和 `thenExprNodeListHeader` 的处理上。
+5. 最后，发现，问题出在 第4步 ，以及 `then` 和 `else_body` 的action上。
+
+时间消耗在，断点调试多次，却未能定位问题。
+
+### 杂项
+
+block不支持不带花括号的代码。暂未想到实现不带花括号的block的规则。
+
+
+
+
+
+
+
