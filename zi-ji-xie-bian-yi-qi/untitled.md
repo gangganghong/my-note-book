@@ -1115,7 +1115,96 @@ lldb 命令
   p *root->funcBody->funcStmtsListHead.next->next->next->funcStmtNode->thenExprNodeListHeader.next->next->expr->l
 ```
 
+时间消耗：47分。复制粘贴而已，新增一个函数，稍微修改bison文件就行。时间消耗点，测试，不应该消耗这么多时间，我也想不起为啥会用这么多时间，需要更细化地记录时间消耗。
 
+### do-while
+
+写思路，时间消耗：5分。
+
+代码修改：6分。
+
+测试：
+
+	1. 报错，重复运行3分。
+ 	2. 解决了问题，9分。修改错误用时几秒钟，发现问题用了剩余时间。也没啥好方法，运行了几次。没有发现。看bison文件，发现，新增的do_while_stmt没有加入整个体系。
+ 	3. 测试通过：8分。
+
+总共耗时：31分。测试和找问题消耗时间17分。写代码只有6分钟而已。
+
+1. 修改lex文件。
+2. 新增数据结构和创建结点的函数。
+3. 修改bison文件。
+
+#### 测试
+
+输入数据
+
+```c
+int main(int argc) {
+    int ab;
+    do{
+        ab = 5;
+        mf___ = 89;
+        h_i__ = 94;
+    }while (true);
+}
+```
+
+lldb命令
+
+```
+ p *root->funcBody->funcStmtsListHead.next->funcStmtNode->thenExprNodeListHeader.next->expr->l
+```
+
+输入数据
+
+```c
+int main(int argc) {
+    int ab;
+    do{
+        ab = 5;
+        mf___ = 89;
+        h_i__ = 94;
+    }while(true);
+    if (true) {
+        ab = 5;
+        test_mf = 89;
+        hi = 94;
+    }else{
+        _ab = 5;
+        mf_ = 89;
+        h_i = 94;
+    }
+    if (false) {
+        ab_ = 5;
+        mf_ = 89;
+        hi_ = 94;
+    }else{
+        _ab__ = 5;
+        mf___ = 89;
+        h_i__ = 94;
+    }
+    while(true){
+        ab=5;
+        de=78;
+    }
+}##
+```
+
+lldb命令
+
+```
+p *root->funcBody->funcStmtsListHead.next->funcStmtNode->thenExprNodeListHeader.next->expr->l
+p *root->funcBody->funcStmtsListHead.next->next->funcStmtNode->thenExprNodeListHeader.next->expr->l
+p *root->funcBody->funcStmtsListHead.next->next->next->funcStmtNode->thenExprNodeListHeader.next->expr->l
+p *root->funcBody->funcStmtsListHead.next->next->next->next->funcStmtNode->thenExprNodeListHeader.next->expr->l
+```
+
+
+
+```
+error: memory exhausted
+```
 
 
 
