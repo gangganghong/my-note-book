@@ -1029,7 +1029,7 @@ error: <user expression 62>:1:1: indirection requires pointer operand ('funcStmt
 
 改成`p *root->funcBody->funcStmtsListHead.next` 就可以。原因不明。
 
-用这种方式，能争取存储AST，然而，这种不规则的读数据方法，我觉得难维护。
+用这种方式，能正确存储AST，然而，这种不规则的读数据方法，我觉得难维护。
 
 其实也不是特别没有规则，读取指针成员用`->`，读取非指针成员用`.`。让我觉得不规则的地方是，其他变量能用p直接打印，唯独非指针不能用p打印。
 
@@ -1070,11 +1070,113 @@ struct ast *createFunction(struct ast *returnType, struct ast *funcName,
       1. 这里是主要的时间消耗点。
       2. 使用`lldb` 打印变量时，若struct类变量是指针，需使用`->` 读取成员数据；若是非指针，需使用`.` 读取成员数据。这是我已经知道的。我困扰于p不能打印非指针中间变量，而只能打印非指针中间变量的成员，但是却能打印指针变量本身。我以为未能正确存储数据，胡乱尝试，才发现只能打印非指针中间变量的成员。
 
+### 解析while语句
+
+
+
+#### 测试
+
+输入数据
+
+```c
+int main(int argc, char ef, double te) {
+    int ab;
+    int mf;
+    char hi;
+    if (true) {
+        ab = 5;
+        test_mf = 89;
+        hi = 94;
+    }else{
+        _ab = 5;
+        mf_ = 89;
+        h_i = 94;
+    }
+    if (false) {
+        ab_ = 5;
+        mf_ = 89;
+        hi_ = 94;
+    }else{
+        _ab__ = 5;
+        mf___ = 89;
+        h_i__ = 94;
+    }
+    while(true){
+        ab=5;
+        de=78;
+    }
+}##
+```
+
+lldb 命令
+
+```shell
+ p *root->funcBody->funcStmtsListHead.next->funcStmtNode->thenExprNodeListHeader.next->next->expr->l
+  p *root->funcBody->funcStmtsListHead.next->next->next->funcStmtNode->thenExprNodeListHeader.next->next->expr->l
+```
+
+
+
+
+
 ### 杂项
 
 block不支持不带花括号的代码。暂未想到实现不带花括号的block的规则。
 
+### C语言struct“继承”
 
+```c
+#include <stdio.h>
+
+//父结构体
+struct father
+{
+    int f1;
+    int f2;
+};
+
+//子结构体
+struct son
+{
+    //子结构体里定义一个父结构体变量，必须放在子结构体里的第一位
+    struct father fn;
+    //子结构体的扩展变量
+    int s1;
+    int s2;
+};
+
+void test(struct son *t)
+{
+    //将子结构体指针强制转换成父结构体指针
+    struct father *f = (struct father *)t;
+    //打印原始值
+    printf("f->f1 = %d\n",f->f1);
+    printf("f->f2 = %d\n",f->f2);
+    //修改原始值
+    f->f1 = 30;
+    f->f2 = 40;
+}
+
+int main(void)
+{
+    struct son s;
+    s.fn.f1 = 10;
+    s.fn.f2 = 20;
+
+    test(&s);
+    //打印修改后的值
+    printf("s.fn.f1 = %d\n",s.fn.f1);
+    printf("s.fn.f2 = %d\n",s.fn.f2);
+
+    return 0;
+}
+```
+
+son结构体里的第一个成员是father结构体类型的变量，son里的另外2个成员也是整形变量，这样，son结构体就好像继承了father结构体，并增加了2个成员。父结构体必须是第一个成员，才能模拟“继承”机制。
+
+~~clion似乎不支持这个用法。~~
+
+需要将子struct转为父struct，子struct才能使用父struct的成员。
 
 
 
