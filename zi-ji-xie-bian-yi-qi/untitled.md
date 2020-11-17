@@ -2,7 +2,29 @@
 
 
 
-# 用bison处理main函数
+# 用bison处理C语言main函数
+
+## 进度快照
+
+1. 项目代码在：
+
+/Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang
+
+在for-todo分支，代码仓库：https://github.com/gangganghong/study-compiler-java
+
+2. 修改完项目后，使用 make 编译，使用 make clean 清理目前的编译结果，使用make run 运行设定的程序。
+   1. 目前，我没有使用make run
+3. 使用lldb断点调试程序。
+   1. 使用make编译代码，得到可执行文件 tcc。
+   2. 使用lldb断点调试程序，例如：lldb tcc。
+   3. 设置断点：b newCode
+   4. 让程序运行：run
+   5. 输入数据：在run执行后，在命令行窗口粘贴数据。
+   6. 打印变量：p *root
+   7. 执行下一步：n
+   8. 执行到下个断点：c
+4. 目前，我在newCode设置断点，使用 p 打印 root 的成员来观察AST是否正确。
+5. 正在做解析for结构的功能，未完成，中止了。
 
 在action中写匹配规则很容易，难点是如何存储匹配到的语言元素。
 
@@ -15,8 +37,6 @@
 可是，函数体由多个变量、多条语句组成，这些需要不定长数组来存储。一个结构体只允许最后一个成员是不定长数组。我如何才能存储函数体的变量和多条语句？
 
 c语言作为一门写出过操作系统的语言，肯定能解决这类问题，可我却不知道怎么解决。
-
-
 
 ## 用链表
 
@@ -1206,7 +1226,19 @@ p *root->funcBody->funcStmtsListHead.next->next->next->next->funcStmtNode->thenE
 error: memory exhausted
 ```
 
+### for
 
+规则有点难写，有点多，都是重复代码。
+
+我想终止用bison解析语言结构了。目前我解析的是C语言代码，我要写的编译器是golang的。知道怎么用bison解析代码后，就可以开始解析go代码了。就算我把C语言的所有结构都解析出来了，也不会让我一两个小时就能解析出go代码，到时候我还得重来一次。而且，bison这个工具，没必要用它做太多练习。
+
+我的目的，很重要的目的，是尽快写完比较完善的go编译器。时间很宝贵啊。
+
+接下来，我会给目前的进度做个快照，封存。我会做下面的事情：
+
+1. 根据目前的AST生成中间代码，或生成我期望的代码。
+2. 用Cpp结合bison和lex来写代码。
+3. 生成汇编代码，编译成机器语言，完成整个编译器流程。没必要等到解析语言结构的所有代码完成后再去打通整个流程。
 
 ### 杂项
 
