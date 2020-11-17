@@ -22,9 +22,6 @@
 
 ## 自己写编译器
 
+* [自己动手写Go编译器任务清单](zi-ji-xie-bian-yi-qi/zi-ji-dong-shou-xie-golang-bian-yi-qi-ren-wu-qing-dan.md)
 * [用bison处理main函数](zi-ji-xie-bian-yi-qi/untitled.md)
-
----
-
-* [自己动手写Go编译器任务清单](zi-ji-dong-shou-xie-golang-bian-yi-qi-ren-wu-qing-dan.md)
 
