@@ -1,8 +1,4 @@
-
-
-
-
-# 用bison处理C语言main函数
+# 用bison处理main函数
 
 ## 进度快照
 
@@ -10,21 +6,21 @@
 
 /Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang
 
-在for-todo分支，代码仓库：https://github.com/gangganghong/study-compiler-java
+在for-todo分支，代码仓库：[https://github.com/gangganghong/study-compiler-java](https://github.com/gangganghong/study-compiler-java)
 
-2. 修改完项目后，使用 make 编译，使用 make clean 清理目前的编译结果，使用make run 运行设定的程序。
+1. 修改完项目后，使用 make 编译，使用 make clean 清理目前的编译结果，使用make run 运行设定的程序。
    1. 目前，我没有使用make run
-3. 使用lldb断点调试程序。
+2. 使用lldb断点调试程序。
    1. 使用make编译代码，得到可执行文件 tcc。
    2. 使用lldb断点调试程序，例如：lldb tcc。
    3. 设置断点：b newCode
    4. 让程序运行：run
    5. 输入数据：在run执行后，在命令行窗口粘贴数据。
-   6. 打印变量：p *root
+   6. 打印变量：p \*root
    7. 执行下一步：n
    8. 执行到下个断点：c
-4. 目前，我在newCode设置断点，使用 p 打印 root 的成员来观察AST是否正确。
-5. 正在做解析for结构的功能，未完成，中止了。
+3. 目前，我在newCode设置断点，使用 p 打印 root 的成员来观察AST是否正确。
+4. 正在做解析for结构的功能，未完成，中止了。
 
 在action中写匹配规则很容易，难点是如何存储匹配到的语言元素。
 
@@ -48,7 +44,7 @@ c语言作为一门写出过操作系统的语言，肯定能解决这类问题�
 
 执行报错，不知道错在哪里。耗费许久。耗费3个多小时无进展。
 
- excess elements in scalar initializer
+excess elements in scalar initializer
 
 ```c
 void *addToParamNodeList(struct ast *param, struct paramNode *paramNodeListHeader) {
@@ -64,9 +60,7 @@ void *addToParamNodeList(struct ast *param, struct paramNode *paramNodeListHeade
 }
 ```
 
-
-
-```shell
+```text
 Process 55480 stopped
 * thread #1, queue = 'com.apple.main-thread', stop reason = EXC_BAD_ACCESS (code=1, address=0x0)
     frame #0: 0x0000000100003383 tcc`addToParamNodeList(param=0x0000000100304610, paramNodeListHeader=0x0000000000000000) at fb1-5funcs.c:192:16
@@ -74,9 +68,7 @@ Process 55480 stopped
    190      // todo 不能使用malloc初始化paramNode,只能如此声明。会出问题吗？
 ```
 
-
-
-```shell
+```text
 tcc was compiled with optimization - stepping may behave oddly; variables may not be available.
 Process 65374 stopped
 * thread #1, queue = 'com.apple.main-thread', stop reason = step over
@@ -86,7 +78,7 @@ Target 0: (tcc) stopped.
 
 出现step over这条信息，不表示程序出错退出了调试。退出调试的标记是（遇到再补充）：
 
-```shell
+```text
 (lldb) n
 tcc was compiled with optimization - stepping may behave oddly; variables may not be available.
 Process 68664 stopped
@@ -97,7 +89,7 @@ Target 0: (tcc) stopped.
 
 断点调试退出的标志：`Process 68664 stopped` 。
 
-```shell
+```text
 (lldb) p *cur
 (paramNode) $2 = {
   param = 0x0000000000000000
@@ -107,25 +99,19 @@ Target 0: (tcc) stopped.
 
 内存地址 `0x0000000000000000` ，不理解。
 
-
-
-```shell
+```text
 fb1-5.y:90.6: warning: rule useless in parser due to conflicts [-Wother]
    90 | stmt:
       |      ^
 ```
 
-
-
-```shell
+```text
  struct ast *createCon(struct ast *con) {
 -> 13       struct ast *node = malloc(sizeof(struct ast));
    14       node->nodeType = con->nodeType;
    15       node->con = con;
    16       if (con->nodeType == 's' || con->nodeType == 'n') {
 ```
-
-
 
 con的值是 's'，解析的字符串demo-A是：
 
@@ -135,18 +121,18 @@ int main(int argc){int ab;if(true)ab=5;}
 
 解析结果应该是 'true'。createStr的返回结果是正常的，不知道为何到了createCon，con的结果就发生了变化。
 
-```shell
+```text
 (lldb) p *con->nodeType
 error: <user expression 23>:1:1: indirection requires pointer operand ('int' invalid)
 ```
 
 This error occurs when you want to create pointer to your variable by `*my_var` instead of `&my_var`.
 
-改成 ``(lldb) p con->nodeType``  就正确了。
+改成 `(lldb) p con->nodeType` 就正确了。
 
 ### 小结
 
-解析demo-A能一直执行到 ``createIfNode`` 。到了该函数的最后几步报错。另外，数字和字符串，都不能获取到正确的值。字符串获取到的值是's'，数字获取到的是一个比正确数值大得离谱的不知道怎么出来的值。createStr和createNum直到最后一步，返回的都是正确的结果。
+解析demo-A能一直执行到 `createIfNode` 。到了该函数的最后几步报错。另外，数字和字符串，都不能获取到正确的值。字符串获取到的值是's'，数字获取到的是一个比正确数值大得离谱的不知道怎么出来的值。createStr和createNum直到最后一步，返回的都是正确的结果。
 
 接下来，该如何调试？不知道问题出现在哪个环节。
 
@@ -161,28 +147,28 @@ This error occurs when you want to create pointer to your variable by `*my_var` 
 ```c
 int main()
 {
-	if(true){
-		ab = 5;
-	}
+    if(true){
+        ab = 5;
+    }
 }
 ```
 
 我将输入数据简化为
 
-````c
+```c
 int main(int argc){int ab;if(true)ab=5;}
-````
+```
 
-2. 不能匹配多个参数，我简化为只有一个参数、一个变量。
+1. 不能匹配多个参数，我简化为只有一个参数、一个变量。
 
 #### 障碍
 
 1. createStr和createNum直到最后一步，返回的都是正确的结果。为啥到了其他地方，值变得不正确了？
-2. ``createIfNode`` 。到了该函数的最后几步报错。
+2. `createIfNode` 。到了该函数的最后几步报错。
 
 #### 其他
 
-1. struct需要先定义，才能在诸如malloc(struct )等中使用。
+1. struct需要先定义，才能在诸如malloc\(struct \)等中使用。
 2. 不能在函数外写这样的语句：
 
 ```c
@@ -231,15 +217,11 @@ Step Return（Shift+F11/F7）在单步执行到子函数内时，用Step Return�
 
 lldb 设置行号断点
 
-breakpoint set -f <filename> -l <line number>
+breakpoint set -f  -l 
 
 b set -f /Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5funcs.c -l 7
 
-(lldb) b set -f /Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5funcs.c -l 7
-Breakpoint 2: no locations (pending).
-WARNING:  Unable to resolve breakpoint to any actual locations.
-
-<!--这个语法不能使用-->
+\(lldb\) b set -f /Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5funcs.c -l 7 Breakpoint 2: no locations \(pending\). WARNING: Unable to resolve breakpoint to any actual locations.
 
 能指向到createIfNode，执行到return node出错退出。
 
@@ -253,11 +235,11 @@ WARNING:  Unable to resolve breakpoint to any actual locations.
 
 createIfNode、addToFuncStmtNodeList都没问题。
 
-createIfNode-->addToFuncStmtNodeList-->createFunction-->newCode
+createIfNode--&gt;addToFuncStmtNodeList--&gt;createFunction--&gt;newCode
 
 三个函数~~可能~~是按上面的顺序执行，在它们上面设置断点。
 
-```shell
+```text
   243  struct ast *createFunction(struct ast *returnType, struct ast *funcName,
    244                             struct paramNode *paramListHead, struct ast *funcBody) {
 -> 245      struct ast *node = malloc(sizeof(struct ast));
@@ -288,13 +270,11 @@ Target 0: (tcc) stopped.
 }
 ```
 
-
-
 returnType中的funcName、variableName，有很奇怪的值。在哪里赋值的？它们不应该有值。
 
 funcName很正常，
 
-```shell
+```text
 (lldb) p *funcName
 (ast) $13 = {
   nodeType = 115
@@ -318,7 +298,7 @@ funcName很正常，
 }
 ```
 
-```shell
+```text
 # paramListHead->next->param 正常
 (lldb) p *paramListHead->next->param
 (ast) $16 = {
@@ -343,7 +323,7 @@ funcName很正常，
 }
 ```
 
-```shell
+```text
 # funcBody->funcVariableListHead->next->funcVariable 正常
 (lldb) p *funcBody->funcVariableListHead->next->funcVariable
 (ast) $20 = {
@@ -368,7 +348,7 @@ funcName很正常，
 }
 ```
 
-```shell
+```text
 (lldb) p *funcBody->funcStmtsListHead->next->funcStmtNode
 (ast) $23 = {
   nodeType = 105
@@ -394,7 +374,7 @@ funcName很正常，
 }
 ```
 
-```shell
+```text
 # funcBody->funcStmtsListHead->next->funcStmtNode->con->l 正常
 (lldb) p *funcBody->funcStmtsListHead->next->funcStmtNode->con->l
 (ast) $25 = {
@@ -419,7 +399,7 @@ funcName很正常，
 }
 ```
 
-```shell
+```text
 # if 的 thenBody 正常
 (lldb) p *funcBody->funcStmtsListHead->next->funcStmtNode->tl->l
 (ast) $28 = {
@@ -466,11 +446,9 @@ funcName很正常，
 }
 ```
 
-
-
 结论：
 
-```
+```text
 createFunction
 ```
 
@@ -492,7 +470,7 @@ createFunction
 
 误解了调试信息，就是下面这个调试信息：
 
-```shell
+```text
 tcc was compiled with optimization - stepping may behave oddly; variables may not be available.
 Process 65374 stopped
 * thread #1, queue = 'com.apple.main-thread', stop reason = step over
@@ -530,79 +508,71 @@ Target 0: (tcc) stopped.
 
 如何匹配下面的代码？
 
-```shell
+```text
 int main(int argc,char ef,){int ab;if(true)ab=5;}
 ```
 
 下面的规则，不行。
 
-```basic
+```text
 func:
-	| identifier identifier '(' params ')' block	{ $$ = createFunction($1, $2, $4, $6); }
-	;
+    | identifier identifier '(' params ')' block    { $$ = createFunction($1, $2, $4, $6); }
+    ;
 
 //void *addToParamNodeList(struct ast *param, struct paramNode *paramNodeListHeader)
 params:
-	| params  param ','	{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
-//	| param			{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
-	;
+    | params  param ','    { addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+//    | param            { addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+    ;
 
 //createParam(char *dataType, char *name)
 param:
-	| identifier identifier		{ $$ = createParam($1, $2); }
-	;
+    | identifier identifier        { $$ = createParam($1, $2); }
+    ;
 ```
 
 已经尝试过的方案。
 
-```
+```text
 # A
 params:
-	| params  param ','	{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
-//	| param			{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
-	;
-	
-# B	
+    | params  param ','    { addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+//    | param            { addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+    ;
+
+# B    
 params:
-  | params  param ','	{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
-  //	| param			{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+  | params  param ','    { addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+  //    | param            { addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
   ;
-  
+
  # C 
  params:
-	| param  ','	params { addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
-//	| param			{ addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
-	;
+    | param  ','    params { addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+//    | param            { addToParamNodeList($1, paramNodeListHeader); $$ = paramNodeListHeader;}
+    ;
 ```
 
 打算怎么办？
 
 1. 搜索？
-
    1. 非上策。这个问题比较依赖场景，搜索适合有固定场景和解决方案的问题，例如，编译器的报错信息，vue发送http请求等。
-
 2. 看解析sql的demo D？
-
    1. 上面尝试过的方案中，我已经在规则中模仿D了，不成功。
    2. 也不好模仿，action不同。
-
 3. 看bison书？
-
    1. 大海捞针。
-
 4. 凭直觉换方案，然后一次次尝试，试图感动编译器？
-
    1. 这是我一贯的做法。绝对不行。
    2. 没想到方法。用直觉试了7分钟，不行。
-
 5. 确定：下层的返回结果必须是构成上层的字符串吗，在循环中？比如：
 
-   ```basic
+   ```text
    select_expr_list: select_expr { $$ = 1; }
        | select_expr_list ',' select_expr {$$ = $1 + 1; }
        | '*' { emit("SELECTALL"); $$ = 1; }
        ;
-   
+
    select_expr: expr opt_as_alias ;
    ```
 
@@ -610,7 +580,7 @@ params:
 
 1. 先分析下面这样的简化版字符串
 
-   ```basic
+   ```text
    int argc, char argv
    ```
 
@@ -618,7 +588,7 @@ params:
 
 问题解决了，解决了问题，关键在于 /Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5.l 中没对逗号设置匹配规则，
 
-```basic
+```text
 "+" |
 "-" |
 "*" |
@@ -641,35 +611,31 @@ params:
 
 调试，有多浪费时间，又有多么的无重大价值，我很清楚。所以，再次提醒自己，先有思路，再调试，不允许凭直觉调试。
 
-##### 小结
+**小结**
 
 在bison中，有下面的规则：
 
 1. $$ 必须与标识符F的数据类型一致，F的数据类型用%type定义。
-
 2. action的结果不参与规则，不影响规则匹配数据。
-
 3. action的结果，会参与上一层的action的运算。
 
-   ```basic
+   ```text
    test:
-   	| tparam ',' test		{ printf("test=%s\n", $1); $$ = contactStr($1, " ", $3); }
-   	| tparam			{ $$ = $1; }
-   	;
+       | tparam ',' test        { printf("test=%s\n", $1); $$ = contactStr($1, " ", $3); }
+       | tparam            { $$ = $1; }
+       ;
    tparam:
-   	| identifier identifier	 { printf("tpamra=%s %s\n", $1->stringValue, $2->stringValue); $$ = contactStr($1->stringValue, " ", $2->stringValue);}
-   	;
+       | identifier identifier     { printf("tpamra=%s %s\n", $1->stringValue, $2->stringValue); $$ = contactStr($1->stringValue, " ", $2->stringValue);}
+       ;
    ```
 
    tparam参与了test的action的运算，即，tparam这条规则的$$参与了test的action的运算。
 
-##### 测试
+**测试**
 
+1. 测试 `int main(int argc,char ef, double te){int ab;if(true)ab=5;}` ，使用`lldb` 命令：
 
-
-1. 测试	`int main(int argc,char ef, double te){int ab;if(true)ab=5;}` ，使用`lldb` 命令：
-
-   ```shell
+   ```text
    p *root->paramListHead->next->param
    p *root->paramListHead->next->next->param
    p *root->paramListHead->next->next->next->param
@@ -687,7 +653,7 @@ todo
 
 ### 多变量
 
-##### int ab
+**int ab**
 
 还算顺利。遇到一个因粗心导致的单链表创建错误问题。
 
@@ -697,13 +663,13 @@ todo
 
    输入数据
 
-   ````
+   ```text
    int main(int argc,char ef, double te){int ab;int mf;char hi;if(true)ab=5;}
-   ````
+   ```
 
    使用的lldb命令
 
-   ```shell
+   ```text
    int main(int argc,char ef, double te){int ab;int mf;char hi;if(true)ab=5;}
    ```
 
@@ -717,24 +683,21 @@ todo
 
 我用`##`来代替回车键作为输入测试代码时的结束标志。
 
-```basic
-		/*/Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5.l*/
+```text
+        /*/Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5.l*/
 "##"        { return EOL; }
-[\r\n]		{  }
+[\r\n]        {  }
     /*       [\r\n] { return EOL; }      */
-
 ```
-
-
 
 在flex中写注释，搜索资料，正确的方法是：
 
-```
+```text
    # 行首必须有空白
    /*       [\r\n] { return EOL; }      */
 ```
 
-耗费时间12分。以为行首必须有空白是在/*内部空白。这类问题，就应该直接搜索解决。
+耗费时间12分。以为行首必须有空白是在/\*内部空白。这类问题，就应该直接搜索解决。
 
 1. 测试
 
@@ -758,11 +721,9 @@ int main(int argc, char ef, double te) {
 }
 ```
 
-
-
 使用的lldb命令
 
-```shell
+```text
 p  *root->funcBody->funcStmtsListHead->next->funcStmtNode->con->l
 p  *root->funcBody->funcStmtsListHead->next->funcStmtNode->tl->l
 p  *root->funcBody->funcStmtsListHead->next->funcStmtNode->tl->r   
@@ -790,16 +751,16 @@ elseBody也这样处理。
 
 写方案。
 
-```basic
+```text
 // /Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5.y
 then:{}
-	| '{' exprs '}'				{ $$ = $2; }
-	| exprs					{ $$ = $1; }
-	;
+    | '{' exprs '}'                { $$ = $2; }
+    | exprs                    { $$ = $1; }
+    ;
 
 exprs:
-	| expr ';' exprs			{ }
-	;1
+    | expr ';' exprs            { }
+    ;1
 ```
 
 在括号等内部的部分，作为一个整体提取出来，处理起来更方便。
@@ -807,8 +768,8 @@ exprs:
 thenBody 改成只有一个成员，每个成员是一个表达式，二元表达式。
 
 1. struct ast新增一个成员，exprNodeListHeader
-2. 新增结构体，struct exprNode，两个成员，一个是struct ast *expr，另一个是struct exprNode *next。（边写边忘）。
-3. 新增全局变量，struct exprNode *exprNodeListHeader，struct exprNode *exprNodeCur。
+2. 新增结构体，struct exprNode，两个成员，一个是struct ast _expr，另一个是struct exprNode_ next。（边写边忘）。
+3. 新增全局变量，struct exprNode _exprNodeListHeader，struct exprNode_ exprNodeCur。
 
 #### 测试
 
@@ -826,37 +787,37 @@ if (true) {
 
 使用规则stmt测试，直接看输出结果。
 
-```basic
+```text
 compilation_unit:{}
-	| test	EOL			{ printf("test = %s\n", $1); }
-//	| IF	EOL		   	{ printf("if = %s\n", $1);	}
-//	| ELSE	EOL		   	{ printf("else = %s\n", $1);	}
-//	| IF con EOL compilation_unit			{ dump($2); }
-	| func EOL			{  newCode($1);				}
-	| stmt				{  newCode($1); }
-	
+    | test    EOL            { printf("test = %s\n", $1); }
+//    | IF    EOL               { printf("if = %s\n", $1);    }
+//    | ELSE    EOL               { printf("else = %s\n", $1);    }
+//    | IF con EOL compilation_unit            { dump($2); }
+    | func EOL            {  newCode($1);                }
+    | stmt                {  newCode($1); }
+
 stmt:
-	| then		{ $$ = $1; }
-	| IF con then			{ $$ = createIfNode($2, $3, NULL); }
-	| IF con then EOL		{ $$ = createIfNode($2, $3, NULL); }
-	| IF con then ELSE else_body EOL		{ $$ = createIfNode($2, $3, $5); }
-	;
+    | then        { $$ = $1; }
+    | IF con then            { $$ = createIfNode($2, $3, NULL); }
+    | IF con then EOL        { $$ = createIfNode($2, $3, NULL); }
+    | IF con then ELSE else_body EOL        { $$ = createIfNode($2, $3, $5); }
+    ;
 
-con:							{}
-	| expr						{ $$ = createCon( $1);}
+con:                            {}
+    | expr                        { $$ = createCon( $1);}
 
-//	| '(' IDENTIFIER '=' NUMBER	')'		{ $$ = createCon('+', $2, $4); }
-//	| '(' IDENTIFIER '=' IDENTIFIER	')'		{ $$ = createCon('='); }
-	;
+//    | '(' IDENTIFIER '=' NUMBER    ')'        { $$ = createCon('+', $2, $4); }
+//    | '(' IDENTIFIER '=' IDENTIFIER    ')'        { $$ = createCon('='); }
+    ;
 //
 then:{}
-	| '{' exprs '}'				{ $$ = $2;  printf("exprs = %s\n", $2); }
-	| exprs					{ $$ = $1; printf("exprs = %s\n", $1); }
-	;
+    | '{' exprs '}'                { $$ = $2;  printf("exprs = %s\n", $2); }
+    | exprs                    { $$ = $1; printf("exprs = %s\n", $1); }
+    ;
 
 exprs:
-	| expr ';' exprs			{ }
-	;
+    | expr ';' exprs            { }
+    ;
 ```
 
 需使用下面的打印函数才能看到结果
@@ -902,7 +863,7 @@ exprs = =
 
 有什么办法能够把测试代码分离出去，以便于维护和永久保存吗？
 
-##### 验证elseBody规则
+**验证elseBody规则**
 
 输入数据
 
@@ -922,7 +883,7 @@ h_i = 94;
 
 耗费时间20分。原因，输出结果让我很疑惑。我因此多次重复执行。时间耗费在测试。
 
-##### 验证
+**验证**
 
 测试完整的if..else...结构。
 
@@ -943,11 +904,9 @@ int main(int argc, char ef, double te) {
 }
 ```
 
-
-
 耗费了很多时间才调试正确。约2个小时。
 
-###### 小结
+**小结**
 
 调试很不成功。一直强调，先有明确的思路，然后再运行代码。一遇到无头绪的问题，我就随意调试起来。运行代码，是件非常消耗时间的事情。
 
@@ -955,13 +914,13 @@ int main(int argc, char ef, double te) {
 
    ```c
    if (thenExprNodeListHeader->next == NULL) {
-     	thenExprNodeListHeader->next = thenExprNodeCur;
+         thenExprNodeListHeader->next = thenExprNodeCur;
    }
    ```
 
    一次断点运行，就应该看出是这里出了问题。
 
-2. 修改好addToThenExprNodeList后，thenExprNodeListHeader->next  无问题。
+2. 修改好addToThenExprNodeList后，thenExprNodeListHeader-&gt;next 无问题。
 3. 查看 `p  *root->funcBody->funcStmtsListHead->next->funcStmtNode` ，con值正常，说明，createIfNode无问题。
 4. 查看 `p  *root->funcBody->funcStmtsListHead->next->funcStmtNode->elseExprNodeListHeader->next` ，异常。说明问题出在 createIfNode 中对`elseExprNodeListHeader` 和 `thenExprNodeListHeader` 的处理上。
 5. 最后，发现，问题出在 第4步 ，以及 `then` 和 `else_body` 的action上。
@@ -998,9 +957,7 @@ int main(int argc, char ef, double te) {
 }##
 ```
 
-
-
-p *funcStmtNodeListHeader->next->next->funcStmtNode->thenExprNodeListHeader->next->next->expr->l
+p \*funcStmtNodeListHeader-&gt;next-&gt;next-&gt;funcStmtNode-&gt;thenExprNodeListHeader-&gt;next-&gt;next-&gt;expr-&gt;l
 
 输出的总是第一个if结构的数据，原因是，存储if结构的变量头结点的变量是全局变量，所以if结构的变量头结点使用的都是这个全局变量。
 
@@ -1026,11 +983,11 @@ static struct paramNode *paramNode = (struct paramNode *) malloc(sizeof(struct p
 
 我不知道该怎么办了。
 
-```shell
+```text
  indirection requires pointer operand ('paramNode' invalid)
 ```
 
-```shell
+```text
  # 能用的表达式
  p *root->paramListHead.next->next->param
  p *root->funcBody->funcStmtsListHead.next->next->funcStmtNode->con->l
@@ -1039,12 +996,12 @@ static struct paramNode *paramNode = (struct paramNode *) malloc(sizeof(struct p
 
 无法运行`p *root->funcBody->funcStmtsListHead.` ，会报错：
 
-```shell
+```text
 (lldb) p *root->funcBody->funcStmtsListHead
 error: <user expression 62>:1:1: indirection requires pointer operand ('funcStmtNode' invalid)
 *root->funcBody->funcStmtsListHead
 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-(lldb) 
+(lldb)
 ```
 
 改成`p *root->funcBody->funcStmtsListHead.next` 就可以。原因不明。
@@ -1092,8 +1049,6 @@ struct ast *createFunction(struct ast *returnType, struct ast *funcName,
 
 ### 解析while语句
 
-
-
 #### 测试
 
 输入数据
@@ -1130,7 +1085,7 @@ int main(int argc, char ef, double te) {
 
 lldb 命令
 
-```shell
+```text
  p *root->funcBody->funcStmtsListHead.next->funcStmtNode->thenExprNodeListHeader.next->next->expr->l
   p *root->funcBody->funcStmtsListHead.next->next->next->funcStmtNode->thenExprNodeListHeader.next->next->expr->l
 ```
@@ -1145,9 +1100,9 @@ lldb 命令
 
 测试：
 
-	1. 报错，重复运行3分。
- 	2. 解决了问题，9分。修改错误用时几秒钟，发现问题用了剩余时间。也没啥好方法，运行了几次。没有发现。看bison文件，发现，新增的do_while_stmt没有加入整个体系。
- 	3. 测试通过：8分。
+1. 报错，重复运行3分。
+   1. 解决了问题，9分。修改错误用时几秒钟，发现问题用了剩余时间。也没啥好方法，运行了几次。没有发现。看bison文件，发现，新增的do\_while\_stmt没有加入整个体系。
+   2. 测试通过：8分。
 
 总共耗时：31分。测试和找问题消耗时间17分。写代码只有6分钟而已。
 
@@ -1172,7 +1127,7 @@ int main(int argc) {
 
 lldb命令
 
-```
+```text
  p *root->funcBody->funcStmtsListHead.next->funcStmtNode->thenExprNodeListHeader.next->expr->l
 ```
 
@@ -1213,16 +1168,14 @@ int main(int argc) {
 
 lldb命令
 
-```
+```text
 p *root->funcBody->funcStmtsListHead.next->funcStmtNode->thenExprNodeListHeader.next->expr->l
 p *root->funcBody->funcStmtsListHead.next->next->funcStmtNode->thenExprNodeListHeader.next->expr->l
 p *root->funcBody->funcStmtsListHead.next->next->next->funcStmtNode->thenExprNodeListHeader.next->expr->l
 p *root->funcBody->funcStmtsListHead.next->next->next->next->funcStmtNode->thenExprNodeListHeader.next->expr->l
 ```
 
-
-
-```
+```text
 error: memory exhausted
 ```
 
@@ -1298,8 +1251,4 @@ son结构体里的第一个成员是father结构体类型的变量，son里的�
 ~~clion似乎不支持这个用法。~~
 
 需要将子struct转为父struct，子struct才能使用父struct的成员。
-
-
-
-
 
