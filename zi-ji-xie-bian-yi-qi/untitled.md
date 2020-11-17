@@ -948,6 +948,128 @@ int main(int argc, char ef, double te) {
 
 时间消耗在，断点调试多次，却未能定位问题。
 
+### 测试多个if语句
+
+输入：
+
+```c
+int main(int argc, char ef, double te) {
+    int ab;
+    int mf;
+    char hi;
+    if (true) {
+        ab = 5;
+        test_mf = 89;
+        hi = 94;
+    }else{
+        _ab = 5;
+        mf_ = 89;
+        h_i = 94;
+    }
+    if (false) {
+        ab_ = 5;
+        mf_ = 89;
+        hi_ = 94;
+    }else{
+        _ab__ = 5;
+        mf___ = 89;
+        h_i__ = 94;
+    }
+}##
+```
+
+
+
+p *funcStmtNodeListHeader->next->next->funcStmtNode->thenExprNodeListHeader->next->next->expr->l
+
+输出的总是第一个if结构的数据，原因是，存储if结构的变量头结点的变量是全局变量，所以if结构的变量头结点使用的都是这个全局变量。
+
+耗费时间58分，才定位出问题原因。
+
+原因：一是分心，二是没有及时断点到addToFuncStmtNodeList，三是观察断点数据时没查看全部。
+
+多个if结构的con正常，只是结构内的变量异常。
+
+怎么解决？
+
+不使用全局变量存储单链表的头结点，在`addToParamNodeList` 等函数内部使用`static`变量存储单链表的头结点。全局变量默认是`static`。`static` 变量不会每次都初始化，只初始化一次。
+
+修改起来，也必将麻烦，会按下了葫芦飘起来了瓢。
+
+目前的代码，全写在一个文件里，我感觉有点杂乱了。还有那么多语言结构（已知的、未知的）需要解析，但我又懒得列出一个功能表。
+
+C语言不支持这种语法
+
+```c
+static struct paramNode *paramNode = (struct paramNode *) malloc(sizeof(struct paramNode));
+```
+
+我不知道该怎么办了。
+
+```shell
+ indirection requires pointer operand ('paramNode' invalid)
+```
+
+```shell
+ # 能用的表达式
+ p *root->paramListHead.next->next->param
+ p *root->funcBody->funcStmtsListHead.next->next->funcStmtNode->con->l
+ p *root->funcBody->funcStmtsListHead.next->next->funcStmtNode->thenExprNodeListHeader.next->expr->r
+```
+
+无法运行`p *root->funcBody->funcStmtsListHead.` ，会报错：
+
+```shell
+(lldb) p *root->funcBody->funcStmtsListHead
+error: <user expression 62>:1:1: indirection requires pointer operand ('funcStmtNode' invalid)
+*root->funcBody->funcStmtsListHead
+^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+(lldb) 
+```
+
+改成`p *root->funcBody->funcStmtsListHead.next` 就可以。原因不明。
+
+用这种方式，能争取存储AST，然而，这种不规则的读数据方法，我觉得难维护。
+
+其实也不是特别没有规则，读取指针成员用`->`，读取非指针成员用`.`。让我觉得不规则的地方是，其他变量能用p直接打印，唯独非指针不能用p打印。
+
+使用非指针，是为了解决全局变量在函数内部重新初始化但又不能重设已经获取的值的问题。一部分代码如下：
+
+```c
+struct ast *createFunction(struct ast *returnType, struct ast *funcName,
+                           struct paramNode *paramListHead, struct ast *funcBody) {
+    struct ast *node = malloc(sizeof(struct ast));
+    node->returnType = returnType->stringValue;
+    node->funcName = funcName->stringValue;
+    node->paramListHead = *paramListHead;
+    node->funcBody = funcBody;
+
+    paramListHead->next = NULL;
+
+    return node;
+}
+```
+
+指针在一块内存存储的是一个内存地址A，根据A，能读取到A地址存储的数据。
+
+指针，有三个数据，第一个，存储这个指针P的内存地址A（任何变量或数据，都需要放入一块内存中）；第二个，内存A存储的数据B，B是指针的值，是一个内存地址；第三个，存放在内存B处的数据C。
+
+将指针A存储的值（是一个内存地址），赋值给另一个指针B（数据类型相同才能赋值），这个操作，将两个指针指向同一块内存C。然后将指针A的值即存储在内存C中的数据修改为D，那么指针B的值，也变成B。因为，指针B和指针A的值，都是内存C中的数据。
+
+将指针A占用的内存K中存储的值C这块内存区域里的数据F赋值给M，然后将A将内存K中的值修改为D，M所使用的内存中存储的数据仍然是F。
+
+本项测试，勉强算通过了。我很不满意这种冗长、存在不理解语法的情况。
+
+耗费时间2小时11分。过程如下：
+
+1. 定位出了问题，全局变量单链表（变量单链表、函数if结构单链表等）头结点始终指向第一个结点。
+2. 解决这个全局变量问题。
+   1. 想在函数内使用static变量，可是不支持static变量使用malloc初始化。我不知道不初始化会怎样。
+   2. 在`createFunction` 等函数内，使用完单链表头结点后，将头结点初始化。这导致已经被存储到AST的头结点成员值被初始化。
+   3. 随机想到了尝试把单链表头结点指针指向的数据赋值给AST的单链表头结点。
+      1. 这里是主要的时间消耗点。
+      2. 使用`lldb` 打印变量时，若struct类变量是指针，需使用`->` 读取成员数据；若是非指针，需使用`.` 读取成员数据。这是我已经知道的。我困扰于p不能打印非指针中间变量，而只能打印非指针中间变量的成员，但是却能打印指针变量本身。我以为未能正确存储数据，胡乱尝试，才发现只能打印非指针中间变量的成员。
+
 ### 杂项
 
 block不支持不带花括号的代码。暂未想到实现不带花括号的block的规则。
