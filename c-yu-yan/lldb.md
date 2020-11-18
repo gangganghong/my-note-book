@@ -4,6 +4,8 @@ description: lldb是调试C/C++的工具，和GDB的功能类似。
 
 # lldb
 
+## lldb
+
 在我的macbook电脑上，使用gdb报错：
 
 ```text
@@ -45,13 +47,9 @@ exit
 
 \[LLDB十分钟快速教程\]\([https://zhuanlan.zhihu.com/p/106415182](https://zhuanlan.zhihu.com/p/106415182)\)
 
+## C语言字符串的动态操作
 
-
-# C语言字符串的动态操作
-
-https://blog.csdn.net/qq_23944945/article/details/83421176
+[https://blog.csdn.net/qq\_23944945/article/details/83421176](https://blog.csdn.net/qq_23944945/article/details/83421176)
 
 很不错的资料，有空整理学习一下
-
-
 
