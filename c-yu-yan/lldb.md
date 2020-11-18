@@ -47,5 +47,11 @@ exit
 
 
 
+# C语言字符串的动态操作
+
+https://blog.csdn.net/qq_23944945/article/details/83421176
+
+很不错的资料，有空整理学习一下
+
 
 
