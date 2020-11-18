@@ -620,8 +620,11 @@ char *funcStr = generateCode(返回数据类型) + generateCode(函数名) + gen
                                              test_mf = 89;
                                              hi = 94;
                                          }
+                                         while(ab = 7){
+                                             test = 5;
+                                         }
                                      }##
-                                     intmainint argcchar efdouble teint abint mfchar hitruehi=94test_mf=89ab=5
+                                     intmainint argcchar efdouble teint abint mfchar hitruehi=94test_mf=89ab=5test=5ab=7test=5
                                      ```
 
                                      3. 有问题的地方。单链表的节点顺序与原始代码的顺序是相反的。不知道对编译程序有没有影响。不过，就算是单链表，我也可以反转它。
