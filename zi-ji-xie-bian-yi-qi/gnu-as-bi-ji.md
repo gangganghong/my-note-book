@@ -20,6 +20,15 @@ Docker
 
 时间消耗18分。
 
+时间消耗1小23分：
+
+1. 将centos8上的gas代码转移到mac上，
+2. 将mac上的gas代码挂载到i386docker容器内。
+3. 更新容器内的i386机器的编译器。
+4. 混淆了新旧镜像创建的容器。
+
+搭建环境太浪费时间了。弄好环境好后，一定要尽量保存、复用。
+
 ### 环境
 
 1. 使用VMware Funsion上面的centos8虚拟机。
@@ -552,6 +561,256 @@ Hello,World
 hi: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, not stripped
 ```
 
+```assembly
+.section .data
+msg:
+        .int 9
+output:
+        .asciz  "ID is %d\n"
+.section .text
+.global _start
+_start:
+        nop
+         #pushl $12
+	    #pushl $output
+        call echo
+        # addl $8, %esp
+
+        movl $1, %eax
+        int $0x80
+
+.type echo, @function
+echo:
+        #pushl %ebp
+        #movl %esp, %ebp
+        #subl $8, %esp
+
+        #movl 42, %edx
+        #movl 4(%esp), %ecx
+        #movl $1, %ebx
+        #movl $4, %eax
+        #int $0x80
+
+        # int $0x80
+        pushl $10
+        pushl $output
+        call printf
+        addl $8, %esp
+
+        #movl %ebp, %esp
+        #popl %ebp
+        ret
+```
+
+### 有参数的函数
+
+```assembly
+.section .data
+output:
+        .ascii  "ID is %d\n"
+        len = . - output
+.section .text
+.global _start
+_start:
+        nop
+        pushl $len
+        pushl $output
+        call echo
+
+        movl $1, %eax
+        int $0x80
+
+.type echo, @function
+echo:
+        pushl %ebp
+        movl %esp, %ebp
+
+        movl 8(%ebp), %ecx
+        movl 12(%ebp), %edx
+        movl $1, %ebx
+        movl $4, %eax
+        int $0x80
+
+        movl %ebp, %esp
+        popl %ebp
+        ret
+```
+
+时间消耗：2小时+++。
+
+这是一个重大突破。
+
+#### 小结
+
+1. 书本提供的demo，用了其他我看不懂的知识，导致我无法根据那个例子了解写汇编函数的基本模板。
+2. 从C代码反汇编出来的代码太冗长，是64位的，我无耐心去看，要看懂难度比较大。总之，我没花一点时间去研究它。
+3. 根据书本和网络资料，我模仿写出了现在来看大部分正确、关键部分出错的函数。
+   1. 这个函数能生成目标代码，但一直出错，比如段错误、打印出乱码。
+   2. 面对这种情况，我如何处理？
+      1. 在自定义函数中调用系统函数。
+      2. 在自定义函数中手工调用系统函数
+      3. 还有其他尝试。概况一下，无清晰思路，先改改看。和以前一样。
+   3. 我以为断点调试能帮我，就转向使用gdb断点。
+      1. 非官方i386 centos4上的gdb不能正常使用，在这里耗时很多。
+      2. 我改用了centos官方镜像 i386 centos7 创建容器，gdb基本能正常使用了，但仍有信息说缺乏独立调试信息等。
+         1. 搜资料，按照说明安装了一些东西，警告信息仍存在。我索性不管了。因为，能断点调试了。
+      3. 断点调试，没帮到我，我不会用gdb。书上的命令，有的不能用。而且，我想看的的stack的中的数据，不知道怎么看。
+      4. 基本上，gdb对我解决这个问题无用。
+   4. docker操作，不熟悉，需看笔记。
+      1. 根据新容器创建镜像。
+      2. 根据新镜像创建容器。
+      3. 挂载mac的文件夹。
+      4. 删除镜像。
+   5. 不打算用GDB解决问题后，我很幸运，搜索到了可以直接运行的gas函数代码。
+      1. 两种向子函数传送数据的方式：一是寄存器，二是我已经写出了的错误代码。
+      2. 运行了别人的带参数的函数代码，我立即明白了，从`stack`中取数据的代码`movl 8(%ebp), %eax `有问题。
+         1. 第一个参数的位置，`8(%ebp)`。
+         2. 第二个参数的位置，12(%ebp)。
+         3. 第三个参数的位置，16(%ebp)。
+         4. 记住两个重要的数字：起点数字是8，间隔是4。后者原因未知。前者的原因，函数的返回地址是 4，它的后面是参数。
+
+### a+b
+
+```assembly
+.section .data
+output:
+    .asciz  "Id %d\n"
+.section .text
+.global _start
+_start:
+    nop
+    pushl $12
+    pushl $20
+    call add
+    pushl %eax
+    pushl $output
+    call printf
+
+    pushl $0
+    call exit
+
+.type   add, @function
+add:
+    pushl %ebp
+    movl %esp, %ebp
+
+    #addl 8(%ebp), 12(%ebp)
+    movl 8(%ebp), %eax
+    addl 12(%ebp), %eax
+
+    movl %ebp, %esp
+    popl %ebp
+    ret
+```
+
+### loop
+
+非常奇怪的问题。
+
+```assembly
+.section .data
+tip:
+    .ascii "Start to run:\n"
+str:
+    .ascii "The value is:%d\n"
+count:
+    .int 0
+max:
+    .int 20
+
+.section .text
+.global _start
+_start:
+    movl $7, %ecx
+    movl $0, %eax
+    #pushl $tip
+    #call printf
+    #add $4, %esp
+    jcxz done
+loop1:
+    pushl %eax
+    pushl $str
+    call printf
+    add $8, %esp
+    add %ecx, %eax
+    loop loop1
+done:
+    pushl $0
+    call exit
+
+```
+
+这段代码会进入死循环，如下：
+
+```shell
+The value is:16
+The value is:16
+The value is:16
+The value is:16
+The value is:16
+The value is:16
+The value is:16
+The value is:16^C
+[root@30d2935db749 mac]#
+```
+
+我的预期，会依次输出7或6次，然后退出。
+
+我已经找到了出现这个问题的原因。
+
+Loop 指令等价于：ecx = ecx - 1;ecx是否等于0。在echo中，无论是直接调用printf还是自己手工用系统调用输出字符串，都改变了ecx的值。执行完echo后，ecx的值也许是8，也许是-2，总之就是不等于0。那么，ecx将永远不会等于0，于是，出现了死循环。
+
+这又是一个极大的时间消耗点。大概消耗了三四个小时，快让我心急如焚。
+
+1. 出现异常后，我首先对比其他代码。其他代码和我的没有本质区别。除了loop的巨大灾难，没有对loop和ecx特别着墨。
+2. 网络资料，只搜索一篇就是讲本问题的，但和我的问题，原因不同，那是因为环境不同导致的，如：DOS环境、16位、32位等。
+3. 看了王爽的《汇编语言》loop部分，也没找到答案。看其他书，同样无果。总之，我看了不少网络资料，都没用。
+4. 用GDB调试，第一次没有任何发现，反倒又陷入对GDB不能熟练使用的麻烦之中。实在没办法，又断点调试。单步调试，有确凿的证据表明，调用echo或write后，ecx突然变了。在手工调用write的代码中，我看到了ecx。我豁然开朗了。ecx被改变了，直接不是0，而且离0越来越远，永远不可能再是0。
+5. 这个问题，不应该消耗这么多时间。用二分法，应该就能逐步定位问题，根本不用去看那么多无用的资料，浪费那么多时间。
+
+```assembly
+.section .data
+tip:
+    .ascii "Start to run:\n"
+str:
+    .ascii "The value is:%d\n"
+count:
+    .int 0
+max:
+    .int 20
+
+.section .text
+.global _start
+_start:
+    movl $7, %ecx
+    movl $0, %eax
+    #pushl $tip
+    #call printf
+    #add $4, %esp
+    jcxz done
+loop1:
+    add %ecx, %eax
+    loop loop1
+done:
+    pushl %eax
+    pushl $str
+    call printf
+    add $8, %esp
+
+    pushl $0
+    call exit
+```
+
+这段代码却是正常的，等价于下列代码：
+
+```c
+for(int i = 0; i < 7; i++){
+	sum += i;
+}
+```
+
+
+
 
 
 ### 有int类型参数的函数
@@ -651,6 +910,39 @@ Centos 7 32 位 官方docker 镜像：
 
 https://hub.docker.com/r/i386/centos
 
+```
+docker pull i386/centos
+docker run -it i386/centos:latest
+```
+
+```
+[root@b626c50b3726 code]# ./test
+hello,world!
+[root@b626c50b3726 code]# gdb test
+GNU gdb (GDB) Red Hat Enterprise Linux 7.6.1-120.el7
+Copyright (C) 2013 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "i686-redhat-linux-gnu".
+For bug reporting instructions, please see:
+<http://www.gnu.org/software/gdb/bugs/>...
+Reading symbols from /home/code/test...done.
+(gdb) b main
+Breakpoint 1 at 0x8048413: file test.c, line 6.
+(gdb) b f
+Breakpoint 2 at 0x8048425: file test.c, line 11.
+(gdb) run
+Starting program: /home/code/test
+warning: Error disabling address space randomization: Operation not permitted
+Cannot create process: Operation not permitted
+During startup program exited with code 127.
+(gdb)
+```
+
+
+
 
 
 #### 查看系统类型
@@ -686,7 +978,7 @@ ld: cannot find -lc
 
 #### 正确的编译命令
 
-[root@0b13ab8deb5a code]# ld -dynamic-linker /lib/ld-linux.so.2.o -o hello -lc hello.o
+[root@0b13ab8deb5a code]# ld -dynamic-linker /lib/ld-linux.so.2 -o hello -lc hello.o
 
 终于可以了！这又是一次自己坑自己的悲剧！
 
@@ -696,9 +988,404 @@ ld: cannot find -lc
 
 
 
+```
+$ sudo docker commit <当前运行的container id> <仓库名称>:<tag>
+$ sudo docker save -o <仓库名称>-<tag>.img <仓库名称>:<tag>
+示例如下:
+$ sudo docker ps
+CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS               NAMES
+111111111111        222222222222        "/bin/bash"   5 minutes ago       Up 5 minutes                                       jello
+$ sudo docker commit 111111111111 bash:1.0
+$ sudo docker save -o bash-1.0.img bash:1.0
+```
 
 
 
+ sudo docker commit 098a58dac17e bdobyns/centos4.6_i386
+$ sudo docker save -o centos4.6_i386.img bdobyns/centos4.6_i386
+
+docker commit b626c50b3726 i386/centos:latest
+
+docker save -o centos7_i386_gas.img i386/centos:latest
 
 
+
+chugangdeMacBook-Pro:my-note-book cg$ docker commit b626c50b3726 i386/centos:latest
+sha256:24882c206bf37f037f50378fcaa71ad804eae6eb70c75f3131079100a22b0f96
+
+```
+chugangdeMacBook-Pro:virtual cg$ docker rmi 99e6d3f782ad
+Error response from daemon: conflict: unable to delete 99e6d3f782ad (must be forced) - image is referenced in multiple repositories
+chugangdeMacBook-Pro:virtual cg$
+
+解决方法：
+
+docker rmi -f 99e6d3f782ad
+```
+
+
+
+```
+chugangdeMacBook-Pro:demo cg$ docker images | grep 'i386'
+i386/centos                               latest              24882c206bf3        19 minutes ago      334MB
+i386/centos                               <none>              fe70670fcbec        20 months ago       201MB
+chugangdeMacBook-Pro:demo cg$ docker rmi fe70670fcbec
+Error response from daemon: conflict: unable to delete fe70670fcbec (cannot be forced) - image has dependent child images
+chugangdeMacBook-Pro:demo cg$
+```
+
+
+
+docker run -ti -v /Users/cg/data/code/study-compiler-java/study/gas:/home/mac i386/centos /bin/bash
+
+
+
+进入被更新之后的镜像创建的容器
+
+docker run -ti -v /Users/cg/data/code/study-compiler-java/study/gas:/home/mac bdobyns/centos4.6_i386 /bin/bash
+
+collect2: error: ld returned 1 exit status
+
+在i386 centos7上，运行gdb出现下面的问题。搜索了很多网络资料，都解决不了。在centos64 8上面，根本没有这个问题。
+
+在这个问题上耗费38分钟了。想办法跳过这个问题。
+
+我写汇编遇到段错误，无法调试。想用gdb断点调试。
+
+```shell
+[root@cbb2ff95679c mac]# gdb test
+GNU gdb Red Hat Linux (6.3.0.0-1.153.el4_6.2rh)
+Copyright 2004 Free Software Foundation, Inc.
+GDB is free software, covered by the GNU General Public License, and you are
+welcome to change it and/or distribute copies of it under certain conditions.
+Type "show copying" to see the conditions.
+There is absolutely no warranty for GDB.  Type "show warranty" for details.
+This GDB was configured as "i386-redhat-linux-gnu"...Using host libthread_db library "/lib/tls/libthread_db.so.1".
+
+(gdb) b main
+Breakpoint 1 at 0x8048384: file test.c, line 4.
+(gdb) b test
+Breakpoint 2 at 0x80483b0: file test.c, line 11.
+(gdb) run
+Starting program: /home/mac/test
+ID is:5
+hello,world!
+
+Program exited normally.
+You can't do that without a process to debug.
+(gdb)
+```
+
+
+
+```
+[root@acee2aea0a16 mac]# gcc -g -o test test.c
+[root@acee2aea0a16 mac]# gdb test
+GNU gdb (GDB) Red Hat Enterprise Linux 7.6.1-120.el7
+Copyright (C) 2013 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "i686-redhat-linux-gnu".
+For bug reporting instructions, please see:
+<http://www.gnu.org/software/gdb/bugs/>...
+Reading symbols from /home/mac/test...done.
+(gdb) b main
+Breakpoint 1 at 0x8048416: file test.c, line 4.
+(gdb) run
+Starting program: /home/mac/test
+warning: Error disabling address space randomization: Operation not permitted
+Cannot create process: Operation not permitted
+During startup program exited with code 127.
+```
+
+
+
+解决：
+
+使用docker的超级权限
+
+docker run --privileged -ti -v /Users/cg/data/code/study-compiler-java/study/gas:/home/mac i386/centos /bin/bash
+
+再次使用 gdb，又遇到问题：
+
+```
+Missing separate debuginfos, use: debuginfo-install glibc-2.17-317.el7.i686
+```
+
+解决：
+
+```
+先修改“/etc/yum.repos.d/CentOS-Debuginfo.repo”文件的 enable=1；
+yum install nss-softokn-debuginfo --nogpgcheck
+yum install yum-utils
+debuginfo-install glibc-2.17-317.el7.i686
+```
+
+#### 搭建能断点调试的汇编开发环境成功
+
+能在i386 centos7上使用gdb调试了，耗费时间：2个小时。遇到的问题：
+
+1. 在非官方centos i386镜像创建的容器内运行gdb
+2. 我以为是使用gdb的命令不正确，搜索许久无果。
+3. 换官方镜像创建容器，gdb仍不能运行。搜索知道，和docker启动的权限设置有关
+4. 设置超级权限后，gdb提示缺少一些信息，安装。
+5. 最后可以了。
+
+![image-20201120124614228](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120124614228.png)
+
+```
+(gdb) x/c $output
+Value can't be converted to integer
+```
+
+
+
+gdb调试汇编
+
+```
+(gdb) x/15i _start
+=> 0x80481b0 <_start>:	push   $0xc
+   0x80481b2 <_start+2>:	push   $0x804a014
+   0x80481b7 <_start+7>:	call   0x80481c6 <echo>
+   0x80481bc <_start+12>:	add    $0x8,%esp
+   0x80481bf <_start+15>:	mov    $0x1,%eax
+   0x80481c4 <_start+20>:	int    $0x80
+   0x80481c6 <echo>:	push   %ebp
+   0x80481c7 <echo+1>:	mov    %esp,%ebp
+   0x80481c9 <echo+3>:	sub    $0x8,%esp
+   0x80481cc <echo+6>:	mov    0x2a,%edx
+   0x80481d2 <echo+12>:	mov    0x8(%esp),%ecx
+   0x80481d6 <echo+16>:	mov    $0x1,%ebx
+   0x80481db <echo+21>:	mov    $0x4,%eax
+   0x80481e0 <echo+26>:	int    $0x80
+   0x80481e2 <echo+28>:	push   $0xa
+(gdb)
+```
+
+
+
+```
+(gdb) disassemble
+Dump of assembler code for function _start:
+   0x080481b0 <+0>:	push   $0xc
+=> 0x080481b2 <+2>:	push   $0x804a014
+   0x080481b7 <+7>:	call   0x80481c6 <echo>
+   0x080481bc <+12>:	add    $0x8,%esp
+   0x080481bf <+15>:	mov    $0x1,%eax
+   0x080481c4 <+20>:	int    $0x80
+End of assembler dump.
+(gdb) p $output
+$3 = void
+(gdb) p $len
+$4 = void
+(gdb) n
+12	        call echo
+(gdb) n
+
+Breakpoint 1, echo () at int-param-func.s:20
+20	        pushl %ebp
+(gdb) n
+21	        movl %esp, %ebp
+(gdb) n
+echo () at int-param-func.s:22
+22	        subl $8, %esp
+(gdb) n
+24	        movl 42, %edx
+(gdb) n
+
+Program received signal SIGSEGV, Segmentation fault.
+echo () at int-param-func.s:24
+24	        movl 42, %edx
+(gdb) n
+
+Program terminated with signal SIGSEGV, Segmentation fault.
+The program no longer exists.
+
+(gdb) x/42bc &output
+0x804a004:	73 'I'	68 'D'	32 ' '	105 'i'	115 's'	32 ' '	37 '%'	100 'd'
+0x804a00c:	10 '\n'	0 '\000'	0 '\000'	0 '\000'	1 '\001'	0 '\000'	0 '\000'	0 '\000'
+0x804a014:	0 '\000'	0 '\000'	18 '\022'	0 '\000'	18 '\022'	0 '\000'	0 '\000'	0 '\000'
+0x804a01c:	1 '\001'	0 '\000'	0 '\000'	0 '\000'	100 'd'	0 '\000'	0 '\000'	0 '\000'
+0x804a024:	51 '3'	-127 '\201'	4 '\004'	8 '\b'	0 '\000'	0 '\000'	0 '\000'	0 '\000'
+0x804a02c:	68 'D'	0 '\000'
+
+(gdb) x/8bc &output
+0x804a004:	73 'I'	68 'D'	32 ' '	105 'i'	115 's'	32 ' '	37 '%'	100 'd'
+(gdb) x/4bc &output
+0x804a004:	73 'I'	68 'D'	32 ' '	105 'i'
+(gdb) x/12bc &output
+0x804a004:	73 'I'	68 'D'	32 ' '	105 'i'	115 's'	32 ' '	37 '%'	100 'd'
+0x804a00c:	10 '\n'	0 '\000'	0 '\000'	0 '\000'
+(gdb) x/12bc &msg
+0x804a000:	9 '\t'	0 '\000'	0 '\000'	0 '\000'	73 'I'	68 'D'	32 ' '	105 'i'
+0x804a008:	115 's'	32 ' '	37 '%'	100 'd'
+(gdb) x/d &msg
+0x804a000:	9
+(gdb) p/x $msg
+$4 = Value can't be converted to integer.
+(gdb) p/x $output
+$5 = Value can't be converted to integer.
+(gdb) p/x $ebp
+$6 = 0x0
+(gdb) x/i $ebp
+   0x0:	Cannot access memory at address 0x0
+(gdb) n
+26	        movl $output, %ecx
+(gdb) n
+27	        movl $msg, %edx
+(gdb) x/i ($ebp)
+   0xffffd880:	add    %al,(%eax)
+(gdb) x/i ($ebp+4)
+   0xffffd884:	inc    %eax
+(gdb)
+(gdb) print output
+$8 = 1763722313
+(gdb) print msg
+$9 = 9
+(gdb) print/c output
+$15 = 73 'I'
+(gdb) print/c output+1
+$16 = 74 'J'
+(gdb) print/c output+8
+$17 = 81 'Q'
+(gdb) print/c output+9
+$18 = 82 'R'
+(gdb) print/c output+98
+$19 = -85 '\253'
+(gdb) print/c output+10
+$20 = 83 'S'
+(gdb) print $ebp
+$22 = (void *) 0xffffd880
+(gdb) p/x $pc
+$23 = 0x804815c
+(gdb) x/i $pc
+=> 0x804815c <echo+21>:	mov    $0x4,%eax
+(gdb) x/c output
+0x69204449:	Cannot access memory at address 0x69204449
+(gdb) x/3uh output
+0x69204449:	Cannot access memory at address 0x69204449
+(gdb) x/3uh msg
+0x9:	Cannot access memory at address 0x9
+(gdb) p	&0x804a004
+Attempt to take address of value not located in memory.
+(gdb) x/8c 0x804a004
+0x804a004:	73 'I'	68 'D'	32 ' '	105 'i'	115 's'	32 ' '	37 '%'	100 'd'
+(gdb)
+(gdb) f
+#0  _start () at int-param-func.s:11
+11	        pushl $msg
+(gdb)
+(gdb) info frame
+Stack level 0, frame at 0x0:
+ eip = 0x80481c4 in echo (printf-func.s:22); saved eip 0x80481c4
+ Outermost frame: outermost
+ source language asm.
+ Arglist at unknown address.
+ Locals at unknown address, Previous frame's sp in esp
+(gdb) x/3x $esp
+0xffffd884:	0x080481bd	0x0804a013	0x0000000c
+(gdb) x/8c 0x080481bd
+0x80481bd <_start+13>:	-72 '\270'	1 '\001'	0 '\000'	0 '\000'	0 '\000'	-51 '\315'	-128 '\200'	85 'U'
+(gdb) x/8c 0x08048a013
+0x8048a013:	Cannot access memory at address 0x8048a013
+(gdb) x/8c 0x0804a013
+0x804a013:	73 'I'	68 'D'	32 ' '	105 'i'	115 's'	32 ' '	37 '%'	100 'd'
+(gdb)
+```
+
+https://blog.csdn.net/xiaozi0221/article/details/90512542?utm_medium=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.control&depth_1-utm_source=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.control
+
+
+
+Gdb 使用
+
+部分经过了验证
+
+格式: x /nfu <addr>
+
+说明
+x 是 examine 的缩写
+
+n表示要显示的内存单元的个数
+
+f表示显示方式, 可取如下值
+x 按十六进制格式显示变量。
+d 按十进制格式显示变量。
+u 按十进制格式显示无符号整型。
+o 按八进制格式显示变量。
+t 按二进制格式显示变量。
+a 按十六进制格式显示变量。
+i 指令地址格式
+c 按字符格式显示变量。
+f 按浮点数格式显示变量。
+
+u表示一个地址单元的长度
+b表示单字节，
+h表示双字节，
+w表示四字节，
+g表示八字节
+
+
+
+![image-20201120093019791](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120093019791.png)
+
+_start+1，是什么意思？
+
+```
+gdb打印表达式的值：print/f 表达式
+f是输出的格式，x/d/u/o/t/a/c/f
+表达式可以是当前程序的const常量，变量，函数等内容，但是GDB不能使用程序中所定义的宏
+查看当前程序栈的内容: x/10x $sp-->打印stack的前10个元素
+查看当前程序栈的信息: info frame----list general info about the frame
+查看当前程序栈的参数: info args---lists arguments to the function
+查看当前程序栈的局部变量: info locals---list variables stored in the frame
+查看当前寄存器的值：info registers(不包括浮点寄存器) info all-registers(包括浮点寄存器)
+查看当前栈帧中的异常处理器：info catch(exception handlers)
+```
+
+
+
+```
+[root@30d2935db749 mac]# ./c.sh add
+filename:./c.sh
+code:add
+add.s: Assembler messages:
+add.s: Warning: end of file not at end of a line; newline inserted
+[root@30d2935db749 mac]#
+```
+
+````
+chugangdeMacBook-Pro:gas cg$ file hello
+hello: ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux.so.2, not stripped
+````
+
+## 汇编知识点
+
+### 寄存器
+
+#### ESP和EBP
+
+ESP是栈顶指针，EBP是存取堆栈指针。
+
+ESP就是一直指向栈顶的指针,而EBP只是存取某时刻的栈顶指针,以方便对栈的操作,如获取函数参数、局部变量等。
+
+ESP：栈指针寄存器(extended stack pointer)，其内存放着一个指针，该指针永远指向系统栈最上面一个栈帧的栈顶。
+
+EBP：基址指针寄存器(extended base pointer)，其内存放着一个指针，该指针永远指向系统栈最上面一个栈帧的底部。
+
+![img](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/1597828-20190721145348151-751236658.png)
+
+执行call add_num时（调用函数），**ESP减4后将add_num过程的返回地址压入堆栈，即当前指令指针EIP的值**（该值为主程序中call指令的下一条指令（不是push ebp）的地址）。*这一步是CPU完成的*。
+
+很好的英语资料
+
+https://www.tenouk.com/Bufferoverflowc/Bufferoverflow2a.html
+
+![image-20201120183029116](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120183029116.png)
+
+![image-20201120183130351](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120183130351.png)
+
+![image-20201120183236726](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120183236726.png)
 
