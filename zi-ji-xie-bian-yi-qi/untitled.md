@@ -556,11 +556,13 @@ params:
 打算怎么办？
 
 1. 搜索？
+   
    1. 非上策。这个问题比较依赖场景，搜索适合有固定场景和解决方案的问题，例如，编译器的报错信息，vue发送http请求等。
 2. 看解析sql的demo D？
    1. 上面尝试过的方案中，我已经在规则中模仿D了，不成功。
    2. 也不好模仿，action不同。
 3. 看bison书？
+   
    1. 大海捞针。
 4. 凭直觉换方案，然后一次次尝试，试图感动编译器？
    1. 这是我一贯的做法。绝对不行。
@@ -1122,7 +1124,7 @@ int main(int argc) {
         mf___ = 89;
         h_i__ = 94;
     }while (true);
-}
+}##
 ```
 
 lldb命令
@@ -1251,4 +1253,307 @@ son结构体里的第一个成员是father结构体类型的变量，son里的�
 ~~clion似乎不支持这个用法。~~
 
 需要将子struct转为父struct，子struct才能使用父struct的成员。
+
+## 错误
+
+```shell
+(char *) $87 = 0x00000001003043f0 "intmainint argch_i__=94mf___=895ab=5true"
+(lldb) n
+tcc was compiled with optimization - stepping may behave oddly; variables may not be available.
+Process 11465 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = step over
+    frame #0: 0x0000000100002ad9 tcc`yyparse at y.tab.c:1520:3 [opt]
+   1517	     incorrect destructor might then be invoked immediately.  In the
+   1518	     case of YYERROR or YYBACKUP, subsequent parser actions might lead
+   1519	     to an incorrect destructor call or verbose syntax error message
+-> 1520	     before the lookahead is translated.  */
+   1521	  YY_SYMBOL_PRINT ("-> $$ =", YY_CAST (yysymbol_kind_t, yyr1[yyn]), &yyval, &yyloc);
+   1522
+   1523	  YYPOPSTACK (yylen);
+Target 0: (tcc) stopped.
+```
+
+
+
+```shell
+ warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+```
+
+
+
+```shell
+(char *) $32 = 0x0000000101004080 "truejqwepkjnm=89"
+(lldb) n
+Process 16694 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = step over
+    frame #0: 0x00007fff67d12cc9 libdyld.dylib`start + 1
+libdyld.dylib`start:
+->  0x7fff67d12cc9 <+1>: movl   %eax, %edi
+    0x7fff67d12ccb <+3>: callq  0x7fff67d2682e            ; symbol stub for: exit
+    0x7fff67d12cd0 <+8>: hlt
+    0x7fff67d12cd1 <+9>: nop
+Target 0: (va_list_demo) stopped.
+```
+
+
+
+```shell
+fb1-5funcs.c:568:23: warning: passing 'const ExprNode *' (aka 'const struct exprNode *') to parameter of type 'ExprNode *'
+      (aka 'struct exprNode *') discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]
+    reverseLinkedList(&node->elseExprNodeListHeader);
+```
+
+```shell
+fb1-5.y:109:83: warning: result of comparison against a string literal is unspecified (use strncmp instead) [-Wstring-compare]
+                                                { if((yyvsp[0].node)->stringValue != "``@@##``"){struct ast *variable = createVariable((yyv...
+```
+
+```assembly
+error: Couldn't apply expression side effects : Couldn't dematerialize a result variable: couldn't read its memory
+```
+
+
+
+## 待解决问题
+
+1. 写了反转链表的函数reverseLinkedList，但是，使用后，if结构会丢失元素。暂时搁置这个问题。
+
+2. 不能解析含有等于号的表达式，例如：
+
+   ```c
+   int main(int argc){
+       int a;
+       int x;
+       int str;
+       str = "str=";
+       a = 9;
+       x = 7;
+       printf(str, x);
+   }
+   ##
+   ```
+
+3. `str:%d\n` 怎么写bison规则？
+4. `#include <stdio.h>` 在哪一步处理？是生成汇编代码时吗？在预处理时实现。怎么实现呢？
+5. grep -R  '*int printf (*' /*  
+
+## C语言转汇编
+
+```assembly
+# 将C代码转成汇编，并且用C代码变量来注释汇编
+gcc -S -fverbose-asm test.c
+```
+
+### 局部变量和返回
+
+#### 整型
+
+```c
+// c
+int a = 5;
+int b = 78;
+return 0;
+```
+
+```assembly
+// asm
+subl    $16, %esp       #,	为啥是16？我发现，每次扩充局部变量空间，都是以16位单位，即：16、32、48。
+movl    $5, -4(%ebp)    #, a
+movl    $78, -8(%ebp)   #, b
+movl    $0, %eax        #, D.2155 。return 0
+```
+
+#### char
+
+```c
+char c = 'h';
+```
+
+```assembly
+subl    $16, %esp       #,
+movb    $104, -1(%ebp)  #, c
+movl    $0, %eax        #, D.2154
+```
+
+ebp的移动单位是byte，-1(%ebp) 的意思是，在ebp往低地址移动8个bit。
+
+#### 字符串
+
+```c
+char *str = "hello";
+```
+
+```assembly
+   .section        .rodata
+.LC0:
+        .string "hello"
+        .text
+        .globl  main
+        .type   main, @function
+main:
+.LFB0:
+        .cfi_startproc
+        pushl   %ebp    #
+        .cfi_def_cfa_offset 8
+        .cfi_offset 5, -8
+        movl    %esp, %ebp      #,
+        .cfi_def_cfa_register 5
+        subl    $16, %esp       #,
+        movl    $.LC0, -4(%ebp) #, str
+        movl    $0, %eax        #, D.2154
+        leave
+        .cfi_restore 5
+        .cfi_def_cfa 4, 4
+        ret
+        .cfi_endproc
+```
+
+汇编代码中，值为字符串的局部变量S，要写在开头。语法树是按顺序遍历的，先遇到函数名、参数等，然后再遇到S。次序与汇编代码的顺序矛盾，如何满足汇编代码的次序要求？
+
+将汇编代码分成几部分，例如函数部分、rodata部分。遇到S，将之转为汇编代码，存入rodata部分。最后，将这些不同部分的代码组织成最终的汇编代码。
+
+#### 简单函数调用
+
+and是与操作，这里是为了内存的对齐，有利于cpu的读取。
+
+```assembly
+andl    $-16, %esp      #,
+subl    $16, %esp       #,
+call    f       #
+movl    $.LC0, 12(%esp) #, str
+movl    $0, %eax        #, D.2161
+```
+
+声明变量，却不使用，有对应的汇编代码吗？
+
+没有。
+
+#### 具备变量和全局变量
+
+##### 字符串
+
+```assembly
+char *str = "hi";
+int main(){
+	char *str;
+	str = "hello";
+}
+```
+
+```assembly
+
+        .globl  str
+        .section        .rodata
+.LC0:
+        .string "hi"
+        .data
+        .align 4
+        .type   str, @object
+        .size   str, 4
+str:
+        .long   .LC0
+        .section        .rodata
+.LC1:
+        .string "hello"
+```
+
+##### 整型
+
+```c
+int str = 900;
+int main(){
+
+        // f();
+        int str;
+        str  = 70;
+        return 0;
+}
+```
+
+```assembly
+.globl  str
+        .data
+        .align 4
+        .type   str, @object
+        .size   str, 4
+str:
+        .long   900
+        
+ // some code
+ subl    $16, %esp       #,
+ movl    $70, -4(%ebp)   #, str
+```
+
+整型局部变量，直接在函数中赋值。
+
+#### if中的局部字符串变量
+
+```c
+char *str = "900";
+int main(){
+
+        char *str;
+        str  = "70";
+        if(str > 0){
+                char *a = "A";
+                char *b = "D";
+        }
+        char *a = "AAAAA";
+        return 0;
+}
+```
+
+
+
+```assembly
+        .globl  str
+        .section        .rodata
+.LC0:
+        .string "900"
+        .data
+        .align 4
+        .type   str, @object
+        .size   str, 4
+str:
+        .long   .LC0
+        .section        .rodata
+.LC1:
+        .string "70"
+.LC2:
+        .string "A"
+.LC3:
+        .string "D"
+.LC4:
+        .string "AAAAA"
+        .text
+        .globl  main
+        .type   main, @function
+main:
+.LFB0:
+        .cfi_startproc
+        pushl   %ebp    #
+        .cfi_def_cfa_offset 8
+        .cfi_offset 5, -8
+        movl    %esp, %ebp      #,
+        .cfi_def_cfa_register 5
+        subl    $16, %esp       #,
+        movl    $.LC1, -4(%ebp) #, str
+        cmpl    $0, -4(%ebp)    #, str
+        je      .L2     #,
+        movl    $.LC2, -8(%ebp) #, a
+        movl    $.LC3, -12(%ebp)        #, b
+.L2:
+        movl    $.LC4, -16(%ebp)        #, a
+        movl    $0, %eax        #, D.2167
+        leave
+        .cfi_restore 5
+        .cfi_def_cfa 4, 4
+        ret
+        .cfi_endproc
+```
+
+1. 局部变量和全局变量的写法。
+2. 同名局部变量，在汇编代码中，是不同的变量。
+
+难道，我需要熟悉汇编代码的所有语法，才能将C语言翻译成汇编代码吗？
 
