@@ -1557,3 +1557,228 @@ main:
 
 难道，我需要熟悉汇编代码的所有语法，才能将C语言翻译成汇编代码吗？
 
+## 生成汇编代码
+
+```c
+#include <stdio.h>
+
+int main(int argc){
+    char *str;
+    int x;
+    str = "str=%d";
+    x = 7;
+    printf(str, x);
+    return 0;
+}
+```
+
+
+
+```assembly
+        .section        .rodata
+.LC0:
+        .string "str=%d"
+        .text
+        .globl  main
+        .type   main, @function
+main:
+.LFB0:
+        .cfi_startproc
+        pushl   %ebp    #
+        .cfi_def_cfa_offset 8
+        .cfi_offset 5, -8
+        movl    %esp, %ebp      #,
+        .cfi_def_cfa_register 5
+        andl    $-16, %esp      #,
+        subl    $32, %esp       #,
+        movl    $.LC0, 28(%esp) #, str
+        movl    $7, 24(%esp)    #, x
+        movl    24(%esp), %eax  # x, tmp61
+        movl    %eax, 4(%esp)   # tmp61,
+        movl    28(%esp), %eax  # str, tmp62
+        movl    %eax, (%esp)    # tmp62,
+        call    printf  #
+        movl    $0, %eax        #, D.2156
+        leave
+        .cfi_restore 5
+        .cfi_def_cfa 4, 4
+        ret
+        .cfi_endproc
+```
+
+声明变量时初始化
+
+```c
+#include <stdio.h>
+
+int main(int argc){
+    char *str = "str=%d";
+    int x = 7;
+    //str = "str=%d";
+    //x = 7;
+    printf(str, x);
+    return 0;
+}
+```
+
+
+
+```assembly
+        .section        .rodata
+.LC0:
+        .string "str=%d"
+        .text
+        .globl  main
+        .type   main, @function
+main:
+.LFB0:
+        .cfi_startproc
+        pushl   %ebp    #
+        .cfi_def_cfa_offset 8
+        .cfi_offset 5, -8
+        movl    %esp, %ebp      #,
+        .cfi_def_cfa_register 5
+        andl    $-16, %esp      #,
+        subl    $32, %esp       #,
+        movl    $.LC0, 28(%esp) #, str
+        movl    $7, 24(%esp)    #, x
+        movl    24(%esp), %eax  # x, tmp61
+        movl    %eax, 4(%esp)   # tmp61,
+        movl    28(%esp), %eax  # str, tmp62
+        movl    %eax, (%esp)    # tmp62,
+        call    printf  #
+        movl    $0, %eax        #, D.2156
+        leave
+        .cfi_restore 5
+        .cfi_def_cfa 4, 4
+        ret
+        .cfi_endproc
+```
+
+生成的汇编代码，与变量声明和变量赋值分开生成的汇编代码一样。
+
+不理解这种汇编代码。函数调用，参数直接用压栈操作不就可以吗？
+
+这种汇编代码，复杂又难以理解，我不生成这种汇编代码。
+
+### 生成汇编代码
+
+```assembly
+.section .data
+str:
+    .asciz  "hello,world:%d\n"
+    len = . - str
+
+.section .text
+.global _start
+_start:
+    nop
+    pushl $7
+    pushl $str
+    call printf
+    movl $1, %eax
+    int $0x80
+```
+
+这就是我要生成的汇编代码，分为三部分：_start模板、call模板、变量。
+
+_start模板
+
+```assembly
+.section .text
+.global _start
+_start:
+    nop
+    # some code
+    movl $1, %eax
+    int $0x80
+```
+
+call 模板
+
+```assembly
+pushl $7
+pushl $str
+call printf
+```
+
+变量
+
+```assembly
+.section .data
+str:
+    .asciz  "hello,world:%d\n"
+    len = . - str
+```
+
+在_start模板中使用占位符，插入call模板，使用的C函数是？
+
+> The printf() family of functions produces output according to a format as described below.  The printf() and vprintf() func-
+>      tions write output to stdout, the standard output stream; fprintf() and vfprintf() write output to the given output stream;
+>      dprintf() and vdprintf() write output to the given file descriptor; sprintf(), snprintf(), vsprintf(), and vsnprintf() write to
+>      the character string str; and asprintf() and vasprintf() dynamically allocate a new string with malloc(3).
+
+
+
+使用`sprintf`。c函数真奇怪，使用指针来获取结果，而不是直接返回。下面是使用`sprintf`的例子。
+
+```c
+#include <stdio.h>
+#include <math.h>
+
+int main()
+{
+   char str[80];
+
+   sprintf(str, "Pi 的值 = %f", M_PI);
+   puts(str);
+   
+   return(0);
+}
+```
+
+```shell
+chugangdeMacBook-Pro:c-example cg$ gcc -o sprintf-demo sprintf-demo.c
+chugangdeMacBook-Pro:c-example cg$ ./sprintf-demo
+Pi 的值 = 3.141593
+```
+
+存储变量的哈希表variable_hash_table，也是个难点。
+
+​		这是简化后的场景。实际场景中，存在同名变量，这个哈希表不能满足要求。
+
+我设计成这样：
+
+```json
+[
+	['str','char','hello'],	// 变量名，变量类型，变量汇编模板
+]
+```
+
+`variable_hash_table` 是一个三维数组（是这样吗？），大数组的每个元素是三维数组，可以直接声明`arr[3]` ，大数组的长度不确定，我打算直接使用一个比较大的长度，而且，使用全局变量。
+
+遍历变量链表时，创建哈希表，变量汇编模板中的变量值使用占位符。
+
+遍历assignNode时，从哈希表中取出变量，若是字符串，替换变量汇编模板中的占位符；若是整型，直接存放整型值。
+
+处理callStmtNode时，先反转实参链表，然后从实参链表中拿出变量名，从`variable_hash_table`中获取对应的变量，生成压栈汇编代码。
+
+没有明确的思路啊，也不能很快想出明确的思路。在写CRUD时，理清了需求，我能够很容易从上至下将思路层层分解。面对现在的这个自己提的需求，为啥就做不到这点呢？
+
+整个过程是这样的：
+
+1. 遍历到main节点，生成_start模板 startCode，调用函数部分使用占位符flag。
+2. 遍历到变量链表，创建`variable_hash_table` 。
+3. 遍历assignStmtNode链表，生成变量汇编模板 variableCode。
+4. 处理callNode，生成调用函数的汇编模板。
+   1. 反转实参单链表。
+   2. 遍历实参单链表，生成入栈汇编代码 pushCode。
+   3. `call 函数名` callFunc。
+   4. 拼接 pushCode + callFunc，生成callCode。
+5. 生成完整的汇编代码。
+   1. 使用callCode替换startCode中的flag。
+   2. 拼接 startCode + variableCode。
+   3. 使用我自定义的字符串拼接函数、sprintf都行。
+
+时间消耗1个小时10分钟。
+
