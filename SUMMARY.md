@@ -22,6 +22,7 @@
 
 ## 自己写编译器
 
+* [C语言笔记](zi-ji-xie-bian-yi-qi/c-yu-yan-bi-ji.md)
 * [gnu as 笔记](zi-ji-xie-bian-yi-qi/gnu-as-bi-ji.md)
 * [用AST生成中间代码](zi-ji-xie-bian-yi-qi/yong-ast-sheng-cheng-zhong-jian-dai-ma.md)
 * [用AST生成新代码](zi-ji-xie-bian-yi-qi/yong-ast-sheng-cheng-xin-dai-ma.md)

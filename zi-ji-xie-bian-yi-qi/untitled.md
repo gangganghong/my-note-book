@@ -217,7 +217,7 @@ Step Return（Shift+F11/F7）在单步执行到子函数内时，用Step Return�
 
 lldb 设置行号断点
 
-breakpoint set -f  -l 
+breakpoint set -f -l
 
 b set -f /Users/cg/data/code/study-compiler-java/study/flex-and-bison/flex/golang/fb1-5funcs.c -l 7
 
@@ -556,13 +556,11 @@ params:
 打算怎么办？
 
 1. 搜索？
-   
    1. 非上策。这个问题比较依赖场景，搜索适合有固定场景和解决方案的问题，例如，编译器的报错信息，vue发送http请求等。
 2. 看解析sql的demo D？
    1. 上面尝试过的方案中，我已经在规则中模仿D了，不成功。
    2. 也不好模仿，action不同。
 3. 看bison书？
-   
    1. 大海捞针。
 4. 凭直觉换方案，然后一次次尝试，试图感动编译器？
    1. 这是我一贯的做法。绝对不行。
@@ -1256,32 +1254,28 @@ son结构体里的第一个成员是father结构体类型的变量，son里的�
 
 ## 错误
 
-```shell
+```text
 (char *) $87 = 0x00000001003043f0 "intmainint argch_i__=94mf___=895ab=5true"
 (lldb) n
 tcc was compiled with optimization - stepping may behave oddly; variables may not be available.
 Process 11465 stopped
 * thread #1, queue = 'com.apple.main-thread', stop reason = step over
     frame #0: 0x0000000100002ad9 tcc`yyparse at y.tab.c:1520:3 [opt]
-   1517	     incorrect destructor might then be invoked immediately.  In the
-   1518	     case of YYERROR or YYBACKUP, subsequent parser actions might lead
-   1519	     to an incorrect destructor call or verbose syntax error message
--> 1520	     before the lookahead is translated.  */
-   1521	  YY_SYMBOL_PRINT ("-> $$ =", YY_CAST (yysymbol_kind_t, yyr1[yyn]), &yyval, &yyloc);
+   1517         incorrect destructor might then be invoked immediately.  In the
+   1518         case of YYERROR or YYBACKUP, subsequent parser actions might lead
+   1519         to an incorrect destructor call or verbose syntax error message
+-> 1520         before the lookahead is translated.  */
+   1521      YY_SYMBOL_PRINT ("-> $$ =", YY_CAST (yysymbol_kind_t, yyr1[yyn]), &yyval, &yyloc);
    1522
-   1523	  YYPOPSTACK (yylen);
+   1523      YYPOPSTACK (yylen);
 Target 0: (tcc) stopped.
 ```
 
-
-
-```shell
+```text
  warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
 ```
 
-
-
-```shell
+```text
 (char *) $32 = 0x0000000101004080 "truejqwepkjnm=89"
 (lldb) n
 Process 16694 stopped
@@ -1295,29 +1289,24 @@ libdyld.dylib`start:
 Target 0: (va_list_demo) stopped.
 ```
 
-
-
-```shell
+```text
 fb1-5funcs.c:568:23: warning: passing 'const ExprNode *' (aka 'const struct exprNode *') to parameter of type 'ExprNode *'
       (aka 'struct exprNode *') discards qualifiers [-Wincompatible-pointer-types-discards-qualifiers]
     reverseLinkedList(&node->elseExprNodeListHeader);
 ```
 
-```shell
+```text
 fb1-5.y:109:83: warning: result of comparison against a string literal is unspecified (use strncmp instead) [-Wstring-compare]
                                                 { if((yyvsp[0].node)->stringValue != "``@@##``"){struct ast *variable = createVariable((yyv...
 ```
 
-```assembly
+```text
 error: Couldn't apply expression side effects : Couldn't dematerialize a result variable: couldn't read its memory
 ```
-
-
 
 ## 待解决问题
 
 1. 写了反转链表的函数reverseLinkedList，但是，使用后，if结构会丢失元素。暂时搁置这个问题。
-
 2. 不能解析含有等于号的表达式，例如：
 
    ```c
@@ -1335,11 +1324,11 @@ error: Couldn't apply expression side effects : Couldn't dematerialize a result 
 
 3. `str:%d\n` 怎么写bison规则？
 4. `#include <stdio.h>` 在哪一步处理？是生成汇编代码时吗？在预处理时实现。怎么实现呢？
-5. grep -R  '*int printf (*' /*  
+5. grep -R  '_int printf \(_' /\*  
 
 ## C语言转汇编
 
-```assembly
+```text
 # 将C代码转成汇编，并且用C代码变量来注释汇编
 gcc -S -fverbose-asm test.c
 ```
@@ -1355,9 +1344,9 @@ int b = 78;
 return 0;
 ```
 
-```assembly
+```text
 // asm
-subl    $16, %esp       #,	为啥是16？我发现，每次扩充局部变量空间，都是以16位单位，即：16、32、48。
+subl    $16, %esp       #,    为啥是16？我发现，每次扩充局部变量空间，都是以16位单位，即：16、32、48。
 movl    $5, -4(%ebp)    #, a
 movl    $78, -8(%ebp)   #, b
 movl    $0, %eax        #, D.2155 。return 0
@@ -1369,13 +1358,13 @@ movl    $0, %eax        #, D.2155 。return 0
 char c = 'h';
 ```
 
-```assembly
+```text
 subl    $16, %esp       #,
 movb    $104, -1(%ebp)  #, c
 movl    $0, %eax        #, D.2154
 ```
 
-ebp的移动单位是byte，-1(%ebp) 的意思是，在ebp往低地址移动8个bit。
+ebp的移动单位是byte，-1\(%ebp\) 的意思是，在ebp往低地址移动8个bit。
 
 #### 字符串
 
@@ -1383,7 +1372,7 @@ ebp的移动单位是byte，-1(%ebp) 的意思是，在ebp往低地址移动8个
 char *str = "hello";
 ```
 
-```assembly
+```text
    .section        .rodata
 .LC0:
         .string "hello"
@@ -1416,7 +1405,7 @@ main:
 
 and是与操作，这里是为了内存的对齐，有利于cpu的读取。
 
-```assembly
+```text
 andl    $-16, %esp      #,
 subl    $16, %esp       #,
 call    f       #
@@ -1430,18 +1419,17 @@ movl    $0, %eax        #, D.2161
 
 #### 具备变量和全局变量
 
-##### 字符串
+**字符串**
 
-```assembly
+```text
 char *str = "hi";
 int main(){
-	char *str;
-	str = "hello";
+    char *str;
+    str = "hello";
 }
 ```
 
-```assembly
-
+```text
         .globl  str
         .section        .rodata
 .LC0:
@@ -1457,7 +1445,7 @@ str:
         .string "hello"
 ```
 
-##### 整型
+**整型**
 
 ```c
 int str = 900;
@@ -1470,7 +1458,7 @@ int main(){
 }
 ```
 
-```assembly
+```text
 .globl  str
         .data
         .align 4
@@ -1478,7 +1466,7 @@ int main(){
         .size   str, 4
 str:
         .long   900
-        
+
  // some code
  subl    $16, %esp       #,
  movl    $70, -4(%ebp)   #, str
@@ -1503,9 +1491,7 @@ int main(){
 }
 ```
 
-
-
-```assembly
+```text
         .globl  str
         .section        .rodata
 .LC0:
