@@ -4,7 +4,7 @@ description: 学习一下gnu as汇编，不打算学得太深入，能看懂基�
 
 # gnu as 笔记
 
-
+## gnu as 笔记
 
 Gnu as 又叫 AT&T 汇编，搜索时用关键词：AT&T。
 
@@ -12,9 +12,9 @@ Gnu as 又叫 AT&T 汇编，搜索时用关键词：AT&T。
 
 我不记得有没有记录笔记，只在word文档中找到一点记录。
 
-## 快照
+### 快照
 
-当前环境，永远都是，根据这个镜像：centos7_i386_gas.img，创建容器，并且挂载目录：
+当前环境，永远都是，根据这个镜像：centos7\_i386\_gas.img，创建容器，并且挂载目录：
 
 /Users/cg/data/code/study-compiler-java/study/gas:/home/mac
 
@@ -26,17 +26,17 @@ Gnu as 又叫 AT&T 汇编，搜索时用关键词：AT&T。
 
 按下面的命令，能随时新建一个容器并进入。
 
-```shell
+```text
 docker run -ti -v /Users/cg/data/code/study-compiler-java/study/gas:/home/mac i386/centos /bin/bash
 docker rename f0afb62cca23 gas-centos
 docker exec -it gas-centos /bin/bash
 ```
 
-### 当前环境
+#### 当前环境
 
-docker run -ti -v /Users/cg/data/code/study-compiler-java/study/gas:/home/mac bdobyns/centos4.6_i386 /bin/bash
+docker run -ti -v /Users/cg/data/code/study-compiler-java/study/gas:/home/mac bdobyns/centos4.6\_i386 /bin/bash
 
-Docker 
+Docker
 
 时间消耗18分。
 
@@ -49,7 +49,7 @@ Docker
 
 搭建环境太浪费时间了。弄好环境好后，一定要尽量保存、复用。
 
-### 环境
+#### 环境
 
 1. 使用VMware Funsion上面的centos8虚拟机。
 2. 用命令行连接虚拟机：ssh root@172.16.64.132，密码是 123456。
@@ -60,7 +60,7 @@ Docker
    3. 这么重要的信息，我上次中断时为什么不做记录？害得我到处找。
 5. 本笔记所在目录：/Users/cg/Documents/gitbook/my-note-book
 
-## 学习清单
+### 学习清单
 
 * [ ] 使用gdb调试
 * [ ] 定义数据元素
@@ -115,19 +115,19 @@ Docker
 
 时间消耗：17分。纯粹是复制抄写。
 
-## 知识点
+### 知识点
 
-### 定义数据元素
+#### 定义数据元素
 
 没有什么好方法，只是看书，没有完全按照上面的清单看书。
 
 能看懂大部分内容。
 
-### for循环
+#### for循环
 
 不能完全跟上讲解逻辑，也看不懂部分代码，比如，变量赋值，看懂了基本模板。当然，大部分内容，我记不住。
 
-### 标准整数长度
+#### 标准整数长度
 
 记不住。
 
@@ -137,21 +137,19 @@ Docker
 
 不过，既然是经典书，我相信它的内容是正确的，
 
-![image-20201119075407062](/Users/cg/Documents/my-note-book/image-20201119075407062.png)
-
-
+![image-20201119075407062](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/my-note-book/image-20201119075407062.png)
 
 左边是低内存位置，右边是高内存位置。
 
 有点绕，没理解透彻。不管这些了，我只记住，内存中和寄存器中的存储是相反的，但处理器自动完成了转换。
 
-### 无符号整数
+#### 无符号整数
 
 没啥难点，但也没记住。
 
 8位、16位、32位、64位，分别由1个字节、2个字节、4个字节、8个字节组成。
 
-### 带符号整数
+#### 带符号整数
 
 带符号数值:最高位表示符号。最高位是0，正数；最高位是1，负数。
 
@@ -165,9 +163,7 @@ Docker
 
 不看笔记，复述一次，补码的计算方法是个：正整数A，求它的补码。先求出A的反码B，然后B+1就是A的补码。
 
-![image-20201119082338542](/Users/cg/Documents/my-note-book/image-20201119082338542.png)
-
-
+![image-20201119082338542](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/my-note-book/image-20201119082338542.png)
 
 想问题，要依赖已经认可的知识。上面这个说法，可以自己推导一下，8位的无符号数和带符号数，16位的、32位的、64位的，看看不是都是和这个结果保持一致。是的话，那就该承认这个说法是正确的。这就是数学老师教的“归纳法”。
 
@@ -181,25 +177,25 @@ Docker
 
 ~~带符号整数能表示的范围，这样理解，2位能表示的数字，分别是：~~
 
-~~原数：		00、01、10、11~~
+~~原数： 00、01、10、11~~
 
-~~反码：		11、10、01、00~~
+~~反码： 11、10、01、00~~
 
-~~补码：		00、11、10、01~~
+~~补码： 00、11、10、01~~
 
-~~十进制：    0、1、2、3~~
+~~十进制： 0、1、2、3~~
 
-~~负数：		-2、-1、0、1~~
+~~负数： -2、-1、0、1~~
 
-~~值：			 2、1、0、1~~
+~~值： 2、1、0、1~~
 
-~~二进制：    10、01、00、01~~
+~~二进制： 10、01、00、01~~
 
-~~反码：		 01、10、00、10~~
+~~反码： 01、10、00、10~~
 
-~~补码：		 10、11、（不要对正数求反码，不符合此处的规则）~~
+~~补码： 10、11、（不要对正数求反码，不符合此处的规则）~~
 
-​					 ~~01    00~~
+​ ~~01 00~~
 
 ~~10、11是带符号的数，前者最大值是，~~
 
@@ -211,7 +207,7 @@ Docker
 
 ~~最终正确的思路：~~
 
-1. ~~2位二级制数，能出现的组合：00		01		10		11~~
+1. ~~2位二级制数，能出现的组合：00        01        10        11~~
 2. ~~在这些组合中挑选出补码，剩余的是带符号的正整数。~~
 3. ~~无符号整数3，求-3的二进制补码形式~~
    1. ~~二进制：11~~
@@ -219,8 +215,6 @@ Docker
    3. ~~补码：01~~
    4. ~~-3用补码二进制表示是：01 吗？意外！~~
       1. ~~11 + 01 = 00，结果确实是十进制0。~~
-
-
 
 上面的推导（或者叫理解），全部都是错误，或者说，可能不正确。
 
@@ -242,21 +236,17 @@ Docker
    3. 转为十进制，分别是：0、3。
 7. 上图中说，”带符号整数的最大值是无符号值的一半“，显然是不对的。因为，1 不是 3 的 1半。
 
-
-
 时间消耗2个小时左右，搞得我思维互相矛盾，无法自圆其说，很沮丧，连这点东西都看弄不明白，还写什么编译器和操作系统啊。
 
 对陌生知识，我的心算能力很弱，实在不行，借住纸和笔计算吧。
 
 还有，有些东西，可能不需要知道为啥是这样。如果理解不了，不理解又不妨碍我去实现主要目的的话，那就跳过吧。我不是跳过许多了吗？为啥非要在这里死磕？
 
+#### BCD
 
+![image-20201119110452290](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/my-note-book/image-20201119110452290.png)
 
-### BCD
-
-![image-20201119110452290](/Users/cg/Documents/my-note-book/image-20201119110452290.png)
-
-### 浮点数
+#### 浮点数
 
 科学计数法
 
@@ -264,13 +254,13 @@ Docker
 
 二进制浮点格式
 
-![image-20201119111509135](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119111509135.png)
+![image-20201119111509135](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119111509135.png)
 
 这本书的信息密度太大，几乎每句话都需要逐字逐句看，而且还可能看不懂。
 
 做了这么多年编程，不记得有遇到过这些知识点，先跳过了。
 
-### 泛读内容
+#### 泛读内容
 
 字符串，移动、从内存读取、放入内存、比较字符串、搜索字符串，每个知识点都是那么陌生，几乎所有内容都需要从头开始慢慢理解、记忆。
 
@@ -278,15 +268,15 @@ Docker
 
 这样看来，我读了这部分书，好像没作用。不知道有没有作用，我期望有作用，我期望我在看汇编代码时有点头绪。
 
-### 函数
+#### 函数
 
-#### 定义函数处理
+**定义函数处理**
 
-```asm
+```text
 .type func1,    @function
 func1:
-	<some code>
-	RET
+    <some code>
+    RET
 ```
 
 函数定义的结束符必须是RET。执行RET时，程序控制从函数内的指令返回到主程序的位置，这个位置是调用函数指令后面的下一条指令，即CALL指令后面的指令。
@@ -309,15 +299,15 @@ func1:
 
 对堆栈栈顶的理解，是由下图中红线引发的。
 
-![image-20201119122419447](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119122419447.png)
+![image-20201119122419447](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119122419447.png)
 
 这又没复杂的知识点和逻辑。如果是我，根据那种场景，我也会那样做。把返回地址放入堆栈，那么通过出栈获取函数参数，或间接寻址栈，都会导致返回地址从栈中丢失或不在栈顶。所以，把返回地址放入另外的寄存器、不受压栈出栈影响的寄存器当然是最方便的。
 
 这又是我的一个思维缺陷。理解红线内容，根本无需知道哪个是栈顶。
 
-#### 函数开头和结尾
+**函数开头和结尾**
 
-![image-20201119124301833](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119124301833.png)
+![image-20201119124301833](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119124301833.png)
 
 1. Pushl %ebp会不会使栈顶元素是%ebp？
 2. Movl %esp， %ebp 是不是把第1步中的ebp又赋值给了ebp？
@@ -326,15 +316,15 @@ func1:
 
 很耗费时间。理解不了。
 
-#### 定义局部函数数据
+**定义局部函数数据**
 
-![image-20201119125915735](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119125915735.png)
+![image-20201119125915735](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119125915735.png)
 
 理解不了这句话。是说，函数把任何数据压入堆栈，ESP寄存器不会发生变化？可是，ESP为啥不发生变化？
 
-#### 清空堆栈
+**清空堆栈**
 
-![image-20201119133017633](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119133017633.png)
+![image-20201119133017633](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119133017633.png)
 
 我不明白，为啥这样做就能把数据清除出堆栈。
 
@@ -344,7 +334,7 @@ func1:
 
 不能再这样看汇编书了，进度太慢。
 
-### 系统调用
+#### 系统调用
 
 Linux内核版本的格式是：linux-a.b.c，a是主版本号，b是次版本号，c是补丁号。
 
@@ -352,44 +342,42 @@ Linux内核具备三个基本功能：内存管理、文件系统（VFS）、设
 
 系统调用在下面的文件定义
 
-![image-20201119135945263](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119135945263.png)
+![image-20201119135945263](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119135945263.png)
 
 查看系统调用：man 2 exit。2是man的第2页。
 
-#### 常用系统调用
+**常用系统调用**
 
-![image-20201119140343585](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119140343585.png)
+![image-20201119140343585](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119140343585.png)
 
-![image-20201119140408087](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119140408087.png)
-
-
+![image-20201119140408087](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119140408087.png)
 
 对内存系统调用最陌生，未曾接触过其中一个。
 
-### 使用系统调用
+#### 使用系统调用
 
 exit系统调用：
 
-```assembly
+```text
 movl $1, %eax
 int 0x80
 ```
 
-#### 系统调用输入值
+**系统调用输入值**
 
 给系统调用传参
 
-![image-20201119141615432](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119141615432.png)
+![image-20201119141615432](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119141615432.png)
 
-### 复杂的系统调用返回值
+#### 复杂的系统调用返回值
 
 类似场景，返回值不是一个整型、字符串等，而是一个class或struct。
 
-#### sysinfo系统调用
+**sysinfo系统调用**
 
-![image-20201119142026788](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119142026788.png)
+![image-20201119142026788](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201119142026788.png)
 
-```assembly
+```text
 _start:
    nop
    movl $result, %ebx
@@ -403,9 +391,9 @@ _start:
 
 `movl $1, %eax` 是什么意思？依照书的意思，是把`movl $116, %eax`系统调用的结果赋值给result。不理解。
 
-#### 函数例子
+**函数例子**
 
-```assembly
+```text
 # sysinfo.s - Retrieving system information via kernel system calls
 .section .data
 msg:
@@ -435,7 +423,7 @@ bufferram:
 totalswap:
    .int 0
 freeswap:
-	 .int 0
+     .int 0
 procs:
    .byte 0x00, 0x00
 totalhigh:
@@ -447,14 +435,14 @@ memunit:
 .section .text
 .globl _start
 _start:
-   nop	# NOP空指令什么都不做,但也被编译器用来作为分割符
+   nop    # NOP空指令什么都不做,但也被编译器用来作为分割符
    movl $result, %ebx
    # sysinfo的数字码是116，32位
    movl $116, %eax
    # 0x80，系统中断，执行系统调用
    int $0x80
-	
-	 # 使用 系统调用write + 系统中断输出数据到屏幕
+
+     # 使用 系统调用write + 系统中断输出数据到屏幕
    movl         $len, %edx
    movl         $msg, %ecx
    # write 的第一个参数，文件句柄
@@ -479,7 +467,7 @@ echo:
 
 编译命令：
 
-```shell
+```text
 as -o sysinfo.o sysinfo.s
 ld -o sysinfo sysinfo.o
 ```
@@ -488,46 +476,44 @@ ld -o sysinfo sysinfo.o
 
 运行结果是：
 
-```shell
+```text
 [root@localhost chap12]# ./sysinfo
 Hello,I am eric!
 It is echo function!
 ```
 
-##### 知识点
+**知识点**
 
 1. 使用了全局变量
 2. 系统调用write打印数据：系统调用 + 中断
 3. 调用无参数汇编函数
 
-##### 疑问
+**疑问**
 
 1. 怎么编写有参数的汇编函数？
 
+#### 调试
 
+**使用gdb**
 
-### 调试
-
-#### 使用gdb
-
-```shell
+```text
 as -gstabs -o sysinfo.o sysinfo.s
 ld -o sysinfo sysinfo.o
 # gdb
 break _start
 run
 next
-count	# 按照正常的方式运行代码
+count    # 按照正常的方式运行代码
 info registers # 显示所有寄存器的值
 # 查看类似struct结构的数据
 (gdb) x/d &uptime
-0x6000c9:	25582
+0x6000c9:    25582
 (gdb) x/d &procs
-0x6000f1:	630
+0x6000f1:    630
 (gdb) x/d &load1
 ```
 
-### 小结
+#### 小结
 
 不打算详细看书了，通过用汇编编程和读汇编代码来学习汇编。
 
@@ -537,11 +523,11 @@ info registers # 显示所有寄存器的值
 
 从书中获得的最有用的是，知道了怎么编译汇编，怎么使用gdb调试汇编，怎么写函数，怎么通过系统中断来实现系统调用。
 
-## 编程
+### 编程
 
-### 用无参数函数输出hello
+#### 用无参数函数输出hello
 
-```assembly
+```text
 # 数据段
 .section .data
 msg:
@@ -551,10 +537,10 @@ msg:
 .section .text
 .global _start
 _start:
-        nop	# 没有也不影响程序功能
-        call echo	# 调用自定义函数 echo
-				
-				# 利用0x80中断 实现系统调用(exit的code是1，32位机器)
+        nop    # 没有也不影响程序功能
+        call echo    # 调用自定义函数 echo
+
+                # 利用0x80中断 实现系统调用(exit的code是1，32位机器)
         movl $1, %eax
         int $0x80
 
@@ -568,11 +554,11 @@ echo:
         # 上面三个是write的三个参数
         movl $4, %eax
         int $0x80
-        
-        ret	# 自定义函数结束必须用这个指令
+
+        ret    # 自定义函数结束必须用这个指令
 ```
 
-```shell
+```text
 [root@localhost as]# as -o hi.o hi.s
 [root@localhost as]# ld -o hi hi.o
 [root@localhost as]# ./hi
@@ -581,7 +567,7 @@ Hello,World
 hi: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, not stripped
 ```
 
-```assembly
+```text
 .section .data
 msg:
         .int 9
@@ -592,7 +578,7 @@ output:
 _start:
         nop
          #pushl $12
-	    #pushl $output
+        #pushl $output
         call echo
         # addl $8, %esp
 
@@ -622,9 +608,9 @@ echo:
         ret
 ```
 
-### 有参数的函数
+#### 有参数的函数
 
-```assembly
+```text
 .section .data
 output:
         .ascii  "ID is %d\n"
@@ -660,7 +646,7 @@ echo:
 
 这是一个重大突破。
 
-#### 小结
+**小结**
 
 1. 书本提供的demo，用了其他我看不懂的知识，导致我无法根据那个例子了解写汇编函数的基本模板。
 2. 从C代码反汇编出来的代码太冗长，是64位的，我无耐心去看，要看懂难度比较大。总之，我没花一点时间去研究它。
@@ -683,15 +669,15 @@ echo:
       4. 删除镜像。
    5. 不打算用GDB解决问题后，我很幸运，搜索到了可以直接运行的gas函数代码。
       1. 两种向子函数传送数据的方式：一是寄存器，二是我已经写出了的错误代码。
-      2. 运行了别人的带参数的函数代码，我立即明白了，从`stack`中取数据的代码`movl 8(%ebp), %eax `有问题。
+      2. 运行了别人的带参数的函数代码，我立即明白了，从`stack`中取数据的代码`movl 8(%ebp), %eax`有问题。
          1. 第一个参数的位置，`8(%ebp)`。
-         2. 第二个参数的位置，12(%ebp)。
-         3. 第三个参数的位置，16(%ebp)。
+         2. 第二个参数的位置，12\(%ebp\)。
+         3. 第三个参数的位置，16\(%ebp\)。
          4. 记住两个重要的数字：起点数字是8，间隔是4。后者原因未知。前者的原因，函数的返回地址是 4，它的后面是参数。
 
-### a+b
+#### a+b
 
-```assembly
+```text
 .section .data
 output:
     .asciz  "Id %d\n"
@@ -723,11 +709,11 @@ add:
     ret
 ```
 
-### loop
+#### loop
 
 正确的代码：
 
-```assembly
+```text
 .section .data
 str:
     .asciz "The value is:%d\n"
@@ -758,7 +744,7 @@ done:
 
 在调用`printf`前，把ecx、eax的值存储到stack中，调用结束后，再取出来。
 
-```assembly
+```text
 .section .data
 str:
     .asciz "The value is:%d\n"
@@ -793,7 +779,7 @@ done:
 
 非常奇怪的问题。
 
-```assembly
+```text
 .section .data
 tip:
     .ascii "Start to run:\n"
@@ -823,12 +809,11 @@ loop1:
 done:
     pushl $0
     call exit
-
 ```
 
 这段代码会进入死循环，如下：
 
-```shell
+```text
 The value is:16
 The value is:16
 The value is:16
@@ -854,7 +839,7 @@ Loop 指令等价于：ecx = ecx - 1;ecx是否等于0。在echo中，无论是�
 4. 用GDB调试，第一次没有任何发现，反倒又陷入对GDB不能熟练使用的麻烦之中。实在没办法，又断点调试。单步调试，有确凿的证据表明，调用echo或write后，ecx突然变了。在手工调用write的代码中，我看到了ecx。我豁然开朗了。ecx被改变了，直接不是0，而且离0越来越远，永远不可能再是0。
 5. 这个问题，不应该消耗这么多时间。用二分法，应该就能逐步定位问题，根本不用去看那么多无用的资料，浪费那么多时间。
 
-```assembly
+```text
 .section .data
 tip:
     .ascii "Start to run:\n"
@@ -891,17 +876,13 @@ done:
 
 ```c
 for(int i = 0; i < 7; i++){
-	sum += i;
+    sum += i;
 }
 ```
 
+#### 有int类型参数的函数
 
-
-
-
-### 有int类型参数的函数
-
-```assembly
+```text
 .section .data
 msg:
         .int 9
@@ -942,7 +923,7 @@ echo:
 
 报错：
 
-```shell
+```text
 func_param_int.s:10: Error: invalid instruction suffix for `push'
 func_param_int.s:19: Error: invalid instruction suffix for `push'
 func_param_int.s:29: Error: invalid instruction suffix for `push'
@@ -950,21 +931,19 @@ func_param_int.s:30: Error: invalid instruction suffix for `push'
 func_param_int.s:35: Error: invalid instruction suffix for `pop'
 ```
 
-```
+```text
 (.text+0x14): undefined reference to `printf'
 ```
 
-~~ld -static **-melf_i386** -e nomain -o TinyHelloWorld TinyHelloWorld.o~~
+~~ld -static **-melf\_i386** -e nomain -o TinyHelloWorld TinyHelloWorld.o~~
 
-~~ld -o func_param_int func_param_int.o -m elf_i386~~
+~~ld -o func\_param\_int func\_param\_int.o -m elf\_i386~~
 
-~~ld -static -melf_i386 -e nomain -o func_param_int func_param_int.o~~
+~~ld -static -melf\_i386 -e nomain -o func\_param\_int func\_param\_int.o~~
 
-~~ld -static -melf_i386  -o func_param_int func_param_int.o~~
+~~ld -static -melf\_i386 -o func\_param\_int func\_param\_int.o~~
 
-## 小结
-
-
+### 小结
 
 时间消耗点：
 
@@ -978,30 +957,28 @@ VMWare Funsion 安装 centos 7 32位失败。
 
 有用的资料：
 
-i386版centos docker 镜像：https://hub.docker.com/r/bdobyns/centos4.6_i386/
+i386版centos docker 镜像：[https://hub.docker.com/r/bdobyns/centos4.6\_i386/](https://hub.docker.com/r/bdobyns/centos4.6_i386/)
 
-大学教授主页：https://www3.nd.edu/~dthain/
+大学教授主页：[https://www3.nd.edu/~dthain/](https://www3.nd.edu/~dthain/)
 
 Gas 64位汇编教程
 
-https://blog.csdn.net/pro_technician/article/details/78173777?utm_medium=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1.control&depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1.control
+[https://blog.csdn.net/pro\_technician/article/details/78173777?utm\_medium=distribute.pc\_relevant.none-task-blog-BlogCommendFromBaidu-1.control&depth\_1-utm\_source=distribute.pc\_relevant.none-task-blog-BlogCommendFromBaidu-1.control](https://blog.csdn.net/pro_technician/article/details/78173777?utm_medium=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1.control&depth_1-utm_source=distribute.pc_relevant.none-task-blog-BlogCommendFromBaidu-1.control)
 
 Centos 下载：
 
-https://www.centos.org/download/
-
-
+[https://www.centos.org/download/](https://www.centos.org/download/)
 
 Centos 7 32 位 官方docker 镜像：
 
-https://hub.docker.com/r/i386/centos
+[https://hub.docker.com/r/i386/centos](https://hub.docker.com/r/i386/centos)
 
-```
+```text
 docker pull i386/centos
 docker run -it i386/centos:latest
 ```
 
-```
+```text
 [root@b626c50b3726 code]# ./test
 hello,world!
 [root@b626c50b3726 code]# gdb test
@@ -1027,34 +1004,15 @@ During startup program exited with code 127.
 (gdb)
 ```
 
+**查看系统类型**
 
+\[root@0b13ab8deb5a code\]\# file hello.o hello.o: ELF 32-bit LSB relocatable, Intel 80386, version 1 \(SYSV\), not stripped \[root@0b13ab8deb5a code\]\# file /sbin/init /sbin/init: ELF 32-bit LSB executable, Intel 80386, version 1 \(SYSV\), for GNU/Linux 2.2.5, dynamically linked \(uses shared libs\), stripped \[root@0b13ab8deb5a code\]\# getconf LONG\_BIT 32 \[root@0b13ab8deb5a code\]\# getconf LONG\_BIT 32 \[root@0b13ab8deb5a code\]\# ld -o hello -lc hello.o \[root@0b13ab8deb5a code\]\# ./hello bash: ./hello: /usr/lib/libc.so.1: bad ELF interpreter: No such file or directory \[root@0b13ab8deb5a code\]\#
 
+\[root@0b13ab8deb5a code\]\# uname -a Linux 0b13ab8deb5a 4.9.125-linuxkit \#1 SMP Fri Sep 7 08:20:28 UTC 2018 x86\_64 x86\_64 x86\_64 GNU/Linux
 
+\[root@0b13ab8deb5a code\]\# ld -o hello -lc hello.o \[root@0b13ab8deb5a code\]\# ./hello bash: ./hello: /usr/lib/libc.so.1: bad ELF interpreter: No such file or directory
 
-#### 查看系统类型
-
-[root@0b13ab8deb5a code]# file hello.o
-hello.o: ELF 32-bit LSB relocatable, Intel 80386, version 1 (SYSV), not stripped
-[root@0b13ab8deb5a code]# file /sbin/init
-/sbin/init: ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), for GNU/Linux 2.2.5, dynamically linked (uses shared libs), stripped
-[root@0b13ab8deb5a code]# getconf LONG_BIT
-32
-[root@0b13ab8deb5a code]# getconf LONG_BIT
-32
-[root@0b13ab8deb5a code]# ld -o hello -lc hello.o
-[root@0b13ab8deb5a code]# ./hello
-bash: ./hello: /usr/lib/libc.so.1: bad ELF interpreter: No such file or directory
-[root@0b13ab8deb5a code]#
-
-[root@0b13ab8deb5a code]# uname -a
-Linux 0b13ab8deb5a 4.9.125-linuxkit #1 SMP Fri Sep 7 08:20:28 UTC 2018 x86_64 x86_64 x86_64 GNU/Linux
-
-[root@0b13ab8deb5a code]# ld -o hello -lc hello.o
-[root@0b13ab8deb5a code]# ./hello
-bash: ./hello: /usr/lib/libc.so.1: bad ELF interpreter: No such file or directory
-
-[root@0b13ab8deb5a code]# ./hello
-bash: ./hello: /lib/ld-linux.so.2.o: bad ELF interpreter: No such file or directory
+\[root@0b13ab8deb5a code\]\# ./hello bash: ./hello: /lib/ld-linux.so.2.o: bad ELF interpreter: No such file or directory
 
 报错：
 
@@ -1062,9 +1020,9 @@ ld: cannot find -lc
 
 没有安装gcc导致的y
 
-#### 正确的编译命令
+**正确的编译命令**
 
-[root@0b13ab8deb5a code]# ld -dynamic-linker /lib/ld-linux.so.2 -o hello -lc hello.o
+\[root@0b13ab8deb5a code\]\# ld -dynamic-linker /lib/ld-linux.so.2 -o hello -lc hello.o
 
 终于可以了！这又是一次自己坑自己的悲剧！
 
@@ -1072,9 +1030,7 @@ ld: cannot find -lc
 
 而且，这个问题，前几天玩汇编的时候，我好像遇到过。记忆力真的下降了吗？以后要记好文档。
 
-
-
-```
+```text
 $ sudo docker commit <当前运行的container id> <仓库名称>:<tag>
 $ sudo docker save -o <仓库名称>-<tag>.img <仓库名称>:<tag>
 示例如下:
@@ -1085,22 +1041,18 @@ $ sudo docker commit 111111111111 bash:1.0
 $ sudo docker save -o bash-1.0.img bash:1.0
 ```
 
-
-
- sudo docker commit 098a58dac17e bdobyns/centos4.6_i386
-$ sudo docker save -o centos4.6_i386.img bdobyns/centos4.6_i386
+sudo docker commit 098a58dac17e bdobyns/centos4.6\_i386 $ sudo docker save -o centos4.6\_i386.img bdobyns/centos4.6\_i386
 
 根据新容器保存镜像
 
-```assembly
+```text
 docker commit 30d2935db749 i386/centos:latest
 docker save -o centos7_i386_gas.img i386/centos:latest
 ```
 
-chugangdeMacBook-Pro:my-note-book cg$ docker commit b626c50b3726 i386/centos:latest
-sha256:24882c206bf37f037f50378fcaa71ad804eae6eb70c75f3131079100a22b0f96
+chugangdeMacBook-Pro:my-note-book cg$ docker commit b626c50b3726 i386/centos:latest sha256:24882c206bf37f037f50378fcaa71ad804eae6eb70c75f3131079100a22b0f96
 
-```
+```text
 chugangdeMacBook-Pro:virtual cg$ docker rmi 99e6d3f782ad
 Error response from daemon: conflict: unable to delete 99e6d3f782ad (must be forced) - image is referenced in multiple repositories
 chugangdeMacBook-Pro:virtual cg$
@@ -1110,9 +1062,7 @@ chugangdeMacBook-Pro:virtual cg$
 docker rmi -f 99e6d3f782ad
 ```
 
-
-
-```
+```text
 chugangdeMacBook-Pro:demo cg$ docker images | grep 'i386'
 i386/centos                               latest              24882c206bf3        19 minutes ago      334MB
 i386/centos                               <none>              fe70670fcbec        20 months ago       201MB
@@ -1121,15 +1071,11 @@ Error response from daemon: conflict: unable to delete fe70670fcbec (cannot be f
 chugangdeMacBook-Pro:demo cg$
 ```
 
-
-
 docker run -ti -v /Users/cg/data/code/study-compiler-java/study/gas:/home/mac i386/centos /bin/bash
-
-
 
 进入被更新之后的镜像创建的容器
 
-docker run -ti -v /Users/cg/data/code/study-compiler-java/study/gas:/home/mac bdobyns/centos4.6_i386 /bin/bash
+docker run -ti -v /Users/cg/data/code/study-compiler-java/study/gas:/home/mac bdobyns/centos4.6\_i386 /bin/bash
 
 collect2: error: ld returned 1 exit status
 
@@ -1139,7 +1085,7 @@ collect2: error: ld returned 1 exit status
 
 我写汇编遇到段错误，无法调试。想用gdb断点调试。
 
-```shell
+```text
 [root@cbb2ff95679c mac]# gdb test
 GNU gdb Red Hat Linux (6.3.0.0-1.153.el4_6.2rh)
 Copyright 2004 Free Software Foundation, Inc.
@@ -1163,9 +1109,7 @@ You can't do that without a process to debug.
 (gdb)
 ```
 
-
-
-```
+```text
 [root@acee2aea0a16 mac]# gcc -g -o test test.c
 [root@acee2aea0a16 mac]# gdb test
 GNU gdb (GDB) Red Hat Enterprise Linux 7.6.1-120.el7
@@ -1187,8 +1131,6 @@ Cannot create process: Operation not permitted
 During startup program exited with code 127.
 ```
 
-
-
 解决：
 
 使用docker的超级权限
@@ -1197,20 +1139,20 @@ docker run --privileged -ti -v /Users/cg/data/code/study-compiler-java/study/gas
 
 再次使用 gdb，又遇到问题：
 
-```
+```text
 Missing separate debuginfos, use: debuginfo-install glibc-2.17-317.el7.i686
 ```
 
 解决：
 
-```
+```text
 先修改“/etc/yum.repos.d/CentOS-Debuginfo.repo”文件的 enable=1；
 yum install nss-softokn-debuginfo --nogpgcheck
 yum install yum-utils
 debuginfo-install glibc-2.17-317.el7.i686
 ```
 
-#### 搭建能断点调试的汇编开发环境成功
+**搭建能断点调试的汇编开发环境成功**
 
 能在i386 centos7上使用gdb调试了，耗费时间：2个小时。遇到的问题：
 
@@ -1220,96 +1162,92 @@ debuginfo-install glibc-2.17-317.el7.i686
 4. 设置超级权限后，gdb提示缺少一些信息，安装。
 5. 最后可以了。
 
-![image-20201120124614228](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120124614228.png)
+![image-20201120124614228](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120124614228.png)
 
-```
+```text
 (gdb) x/c $output
 Value can't be converted to integer
 ```
 
-
-
 gdb调试汇编
 
-```
+```text
 (gdb) x/15i _start
-=> 0x80481b0 <_start>:	push   $0xc
-   0x80481b2 <_start+2>:	push   $0x804a014
-   0x80481b7 <_start+7>:	call   0x80481c6 <echo>
-   0x80481bc <_start+12>:	add    $0x8,%esp
-   0x80481bf <_start+15>:	mov    $0x1,%eax
-   0x80481c4 <_start+20>:	int    $0x80
-   0x80481c6 <echo>:	push   %ebp
-   0x80481c7 <echo+1>:	mov    %esp,%ebp
-   0x80481c9 <echo+3>:	sub    $0x8,%esp
-   0x80481cc <echo+6>:	mov    0x2a,%edx
-   0x80481d2 <echo+12>:	mov    0x8(%esp),%ecx
-   0x80481d6 <echo+16>:	mov    $0x1,%ebx
-   0x80481db <echo+21>:	mov    $0x4,%eax
-   0x80481e0 <echo+26>:	int    $0x80
-   0x80481e2 <echo+28>:	push   $0xa
+=> 0x80481b0 <_start>:    push   $0xc
+   0x80481b2 <_start+2>:    push   $0x804a014
+   0x80481b7 <_start+7>:    call   0x80481c6 <echo>
+   0x80481bc <_start+12>:    add    $0x8,%esp
+   0x80481bf <_start+15>:    mov    $0x1,%eax
+   0x80481c4 <_start+20>:    int    $0x80
+   0x80481c6 <echo>:    push   %ebp
+   0x80481c7 <echo+1>:    mov    %esp,%ebp
+   0x80481c9 <echo+3>:    sub    $0x8,%esp
+   0x80481cc <echo+6>:    mov    0x2a,%edx
+   0x80481d2 <echo+12>:    mov    0x8(%esp),%ecx
+   0x80481d6 <echo+16>:    mov    $0x1,%ebx
+   0x80481db <echo+21>:    mov    $0x4,%eax
+   0x80481e0 <echo+26>:    int    $0x80
+   0x80481e2 <echo+28>:    push   $0xa
 (gdb)
 ```
 
-
-
-```
+```text
 (gdb) disassemble
 Dump of assembler code for function _start:
-   0x080481b0 <+0>:	push   $0xc
-=> 0x080481b2 <+2>:	push   $0x804a014
-   0x080481b7 <+7>:	call   0x80481c6 <echo>
-   0x080481bc <+12>:	add    $0x8,%esp
-   0x080481bf <+15>:	mov    $0x1,%eax
-   0x080481c4 <+20>:	int    $0x80
+   0x080481b0 <+0>:    push   $0xc
+=> 0x080481b2 <+2>:    push   $0x804a014
+   0x080481b7 <+7>:    call   0x80481c6 <echo>
+   0x080481bc <+12>:    add    $0x8,%esp
+   0x080481bf <+15>:    mov    $0x1,%eax
+   0x080481c4 <+20>:    int    $0x80
 End of assembler dump.
 (gdb) p $output
 $3 = void
 (gdb) p $len
 $4 = void
 (gdb) n
-12	        call echo
+12            call echo
 (gdb) n
 
 Breakpoint 1, echo () at int-param-func.s:20
-20	        pushl %ebp
+20            pushl %ebp
 (gdb) n
-21	        movl %esp, %ebp
+21            movl %esp, %ebp
 (gdb) n
 echo () at int-param-func.s:22
-22	        subl $8, %esp
+22            subl $8, %esp
 (gdb) n
-24	        movl 42, %edx
+24            movl 42, %edx
 (gdb) n
 
 Program received signal SIGSEGV, Segmentation fault.
 echo () at int-param-func.s:24
-24	        movl 42, %edx
+24            movl 42, %edx
 (gdb) n
 
 Program terminated with signal SIGSEGV, Segmentation fault.
 The program no longer exists.
 
 (gdb) x/42bc &output
-0x804a004:	73 'I'	68 'D'	32 ' '	105 'i'	115 's'	32 ' '	37 '%'	100 'd'
-0x804a00c:	10 '\n'	0 '\000'	0 '\000'	0 '\000'	1 '\001'	0 '\000'	0 '\000'	0 '\000'
-0x804a014:	0 '\000'	0 '\000'	18 '\022'	0 '\000'	18 '\022'	0 '\000'	0 '\000'	0 '\000'
-0x804a01c:	1 '\001'	0 '\000'	0 '\000'	0 '\000'	100 'd'	0 '\000'	0 '\000'	0 '\000'
-0x804a024:	51 '3'	-127 '\201'	4 '\004'	8 '\b'	0 '\000'	0 '\000'	0 '\000'	0 '\000'
-0x804a02c:	68 'D'	0 '\000'
+0x804a004:    73 'I'    68 'D'    32 ' '    105 'i'    115 's'    32 ' '    37 '%'    100 'd'
+0x804a00c:    10 '\n'    0 '\000'    0 '\000'    0 '\000'    1 '\001'    0 '\000'    0 '\000'    0 '\000'
+0x804a014:    0 '\000'    0 '\000'    18 '\022'    0 '\000'    18 '\022'    0 '\000'    0 '\000'    0 '\000'
+0x804a01c:    1 '\001'    0 '\000'    0 '\000'    0 '\000'    100 'd'    0 '\000'    0 '\000'    0 '\000'
+0x804a024:    51 '3'    -127 '\201'    4 '\004'    8 '\b'    0 '\000'    0 '\000'    0 '\000'    0 '\000'
+0x804a02c:    68 'D'    0 '\000'
 
 (gdb) x/8bc &output
-0x804a004:	73 'I'	68 'D'	32 ' '	105 'i'	115 's'	32 ' '	37 '%'	100 'd'
+0x804a004:    73 'I'    68 'D'    32 ' '    105 'i'    115 's'    32 ' '    37 '%'    100 'd'
 (gdb) x/4bc &output
-0x804a004:	73 'I'	68 'D'	32 ' '	105 'i'
+0x804a004:    73 'I'    68 'D'    32 ' '    105 'i'
 (gdb) x/12bc &output
-0x804a004:	73 'I'	68 'D'	32 ' '	105 'i'	115 's'	32 ' '	37 '%'	100 'd'
-0x804a00c:	10 '\n'	0 '\000'	0 '\000'	0 '\000'
+0x804a004:    73 'I'    68 'D'    32 ' '    105 'i'    115 's'    32 ' '    37 '%'    100 'd'
+0x804a00c:    10 '\n'    0 '\000'    0 '\000'    0 '\000'
 (gdb) x/12bc &msg
-0x804a000:	9 '\t'	0 '\000'	0 '\000'	0 '\000'	73 'I'	68 'D'	32 ' '	105 'i'
-0x804a008:	115 's'	32 ' '	37 '%'	100 'd'
+0x804a000:    9 '\t'    0 '\000'    0 '\000'    0 '\000'    73 'I'    68 'D'    32 ' '    105 'i'
+0x804a008:    115 's'    32 ' '    37 '%'    100 'd'
 (gdb) x/d &msg
-0x804a000:	9
+0x804a000:    9
 (gdb) p/x $msg
 $4 = Value can't be converted to integer.
 (gdb) p/x $output
@@ -1317,15 +1255,15 @@ $5 = Value can't be converted to integer.
 (gdb) p/x $ebp
 $6 = 0x0
 (gdb) x/i $ebp
-   0x0:	Cannot access memory at address 0x0
+   0x0:    Cannot access memory at address 0x0
 (gdb) n
-26	        movl $output, %ecx
+26            movl $output, %ecx
 (gdb) n
-27	        movl $msg, %edx
+27            movl $msg, %edx
 (gdb) x/i ($ebp)
-   0xffffd880:	add    %al,(%eax)
+   0xffffd880:    add    %al,(%eax)
 (gdb) x/i ($ebp+4)
-   0xffffd884:	inc    %eax
+   0xffffd884:    inc    %eax
 (gdb)
 (gdb) print output
 $8 = 1763722313
@@ -1348,21 +1286,21 @@ $22 = (void *) 0xffffd880
 (gdb) p/x $pc
 $23 = 0x804815c
 (gdb) x/i $pc
-=> 0x804815c <echo+21>:	mov    $0x4,%eax
+=> 0x804815c <echo+21>:    mov    $0x4,%eax
 (gdb) x/c output
-0x69204449:	Cannot access memory at address 0x69204449
+0x69204449:    Cannot access memory at address 0x69204449
 (gdb) x/3uh output
-0x69204449:	Cannot access memory at address 0x69204449
+0x69204449:    Cannot access memory at address 0x69204449
 (gdb) x/3uh msg
-0x9:	Cannot access memory at address 0x9
-(gdb) p	&0x804a004
+0x9:    Cannot access memory at address 0x9
+(gdb) p    &0x804a004
 Attempt to take address of value not located in memory.
 (gdb) x/8c 0x804a004
-0x804a004:	73 'I'	68 'D'	32 ' '	105 'i'	115 's'	32 ' '	37 '%'	100 'd'
+0x804a004:    73 'I'    68 'D'    32 ' '    105 'i'    115 's'    32 ' '    37 '%'    100 'd'
 (gdb)
 (gdb) f
 #0  _start () at int-param-func.s:11
-11	        pushl $msg
+11            pushl $msg
 (gdb)
 (gdb) info frame
 Stack level 0, frame at 0x0:
@@ -1372,55 +1310,37 @@ Stack level 0, frame at 0x0:
  Arglist at unknown address.
  Locals at unknown address, Previous frame's sp in esp
 (gdb) x/3x $esp
-0xffffd884:	0x080481bd	0x0804a013	0x0000000c
+0xffffd884:    0x080481bd    0x0804a013    0x0000000c
 (gdb) x/8c 0x080481bd
-0x80481bd <_start+13>:	-72 '\270'	1 '\001'	0 '\000'	0 '\000'	0 '\000'	-51 '\315'	-128 '\200'	85 'U'
+0x80481bd <_start+13>:    -72 '\270'    1 '\001'    0 '\000'    0 '\000'    0 '\000'    -51 '\315'    -128 '\200'    85 'U'
 (gdb) x/8c 0x08048a013
-0x8048a013:	Cannot access memory at address 0x8048a013
+0x8048a013:    Cannot access memory at address 0x8048a013
 (gdb) x/8c 0x0804a013
-0x804a013:	73 'I'	68 'D'	32 ' '	105 'i'	115 's'	32 ' '	37 '%'	100 'd'
+0x804a013:    73 'I'    68 'D'    32 ' '    105 'i'    115 's'    32 ' '    37 '%'    100 'd'
 (gdb)
 ```
 
-https://blog.csdn.net/xiaozi0221/article/details/90512542?utm_medium=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.control&depth_1-utm_source=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.control
-
-
+[https://blog.csdn.net/xiaozi0221/article/details/90512542?utm\_medium=distribute.pc\_relevant\_t0.none-task-blog-BlogCommendFromBaidu-1.control&depth\_1-utm\_source=distribute.pc\_relevant\_t0.none-task-blog-BlogCommendFromBaidu-1.control](https://blog.csdn.net/xiaozi0221/article/details/90512542?utm_medium=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.control&depth_1-utm_source=distribute.pc_relevant_t0.none-task-blog-BlogCommendFromBaidu-1.control)
 
 Gdb 使用
 
 部分经过了验证
 
-格式: x /nfu <addr>
+格式: x /nfu 
 
-说明
-x 是 examine 的缩写
+说明 x 是 examine 的缩写
 
 n表示要显示的内存单元的个数
 
-f表示显示方式, 可取如下值
-x 按十六进制格式显示变量。
-d 按十进制格式显示变量。
-u 按十进制格式显示无符号整型。
-o 按八进制格式显示变量。
-t 按二进制格式显示变量。
-a 按十六进制格式显示变量。
-i 指令地址格式
-c 按字符格式显示变量。
-f 按浮点数格式显示变量。
+f表示显示方式, 可取如下值 x 按十六进制格式显示变量。 d 按十进制格式显示变量。 u 按十进制格式显示无符号整型。 o 按八进制格式显示变量。 t 按二进制格式显示变量。 a 按十六进制格式显示变量。 i 指令地址格式 c 按字符格式显示变量。 f 按浮点数格式显示变量。
 
-u表示一个地址单元的长度
-b表示单字节，
-h表示双字节，
-w表示四字节，
-g表示八字节
+u表示一个地址单元的长度 b表示单字节， h表示双字节， w表示四字节， g表示八字节
 
+![image-20201120093019791](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120093019791.png)
 
+\_start+1，是什么意思？
 
-![image-20201120093019791](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120093019791.png)
-
-_start+1，是什么意思？
-
-```
+```text
 gdb打印表达式的值：print/f 表达式
 f是输出的格式，x/d/u/o/t/a/c/f
 表达式可以是当前程序的const常量，变量，函数等内容，但是GDB不能使用程序中所定义的宏
@@ -1432,9 +1352,7 @@ f是输出的格式，x/d/u/o/t/a/c/f
 查看当前栈帧中的异常处理器：info catch(exception handlers)
 ```
 
-
-
-```
+```text
 [root@30d2935db749 mac]# ./c.sh add
 filename:./c.sh
 code:add
@@ -1443,117 +1361,97 @@ add.s: Warning: end of file not at end of a line; newline inserted
 [root@30d2935db749 mac]#
 ```
 
-````
+```text
 chugangdeMacBook-Pro:gas cg$ file hello
 hello: ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux.so.2, not stripped
-````
+```
 
-## 汇编知识点
+### 汇编知识点
 
-### 寄存器
+#### 寄存器
 
-#### ESP和EBP
+**ESP和EBP**
 
 ESP是栈顶指针，EBP是存取堆栈指针。
 
 ESP就是一直指向栈顶的指针,而EBP只是存取某时刻的栈顶指针,以方便对栈的操作,如获取函数参数、局部变量等。
 
-ESP：栈指针寄存器(extended stack pointer)，其内存放着一个指针，该指针永远指向系统栈最上面一个栈帧的栈顶。
+ESP：栈指针寄存器\(extended stack pointer\)，其内存放着一个指针，该指针永远指向系统栈最上面一个栈帧的栈顶。
 
-EBP：基址指针寄存器(extended base pointer)，其内存放着一个指针，该指针永远指向系统栈最上面一个栈帧的底部。
+EBP：基址指针寄存器\(extended base pointer\)，其内存放着一个指针，该指针永远指向系统栈最上面一个栈帧的底部。
 
-![img](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/1597828-20190721145348151-751236658.png)
+![img](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/1597828-20190721145348151-751236658.png)
 
-执行call add_num时（调用函数），**ESP减4后将add_num过程的返回地址压入堆栈，即当前指令指针EIP的值**（该值为主程序中call指令的下一条指令（不是push ebp）的地址）。*这一步是CPU完成的*。
+执行call add\_num时（调用函数），**ESP减4后将add\_num过程的返回地址压入堆栈，即当前指令指针EIP的值**（该值为主程序中call指令的下一条指令（不是push ebp）的地址）。_这一步是CPU完成的_。
 
 很好的英语资料
 
-https://www.tenouk.com/Bufferoverflowc/Bufferoverflow2a.html
+[https://www.tenouk.com/Bufferoverflowc/Bufferoverflow2a.html](https://www.tenouk.com/Bufferoverflowc/Bufferoverflow2a.html)
 
-![image-20201120183029116](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120183029116.png)
+![image-20201120183029116](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120183029116.png)
 
-![image-20201120183130351](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120183130351.png)
+![image-20201120183130351](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120183130351.png)
 
-![image-20201120183236726](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120183236726.png)
+![image-20201120183236726](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120183236726.png)
 
-### 错误
+#### 错误
 
-```
+```text
 echo.s:11: Error: operand type mismatch for `mov'
 ```
 
-# 从零开始搭建环境编写操作系统 AT&T GCC （四）绘制界面
+## 从零开始搭建环境编写操作系统 AT&T GCC （四）绘制界面
 
-https://blog.csdn.net/cheng7606535/article/details/76653050
+[https://blog.csdn.net/cheng7606535/article/details/76653050](https://blog.csdn.net/cheng7606535/article/details/76653050)
 
+## DOS系统功能调用表\(INT 21H\)
 
+[https://blog.csdn.net/chinazeze/article/details/1735621](https://blog.csdn.net/chinazeze/article/details/1735621)
 
-# DOS系统功能调用表(INT 21H)
+## GCC内嵌AT&T汇编语法
 
+[https://blog.csdn.net/xsc\_c/article/details/17061407](https://blog.csdn.net/xsc_c/article/details/17061407)
 
-
-https://blog.csdn.net/chinazeze/article/details/1735621
-
-
-
-
-
-# GCC内嵌AT&T汇编语法
-
-https://blog.csdn.net/xsc_c/article/details/17061407
-
-## 9 内存引用
+### 9 内存引用
 
 Intel语法的间接内存引用的格式为：
 
-section:[base+index*scale+displacement]
+section:\[base+index\*scale+displacement\]
 
 而在AT&T语法中对应的形式为：
 
-section:displacement(base,index,scale)
+section:displacement\(base,index,scale\)
 
 其中，base和index是任意的32-bit base和index寄存器。scale可以取值1，2，4，8。如果不指定scale值，则默认值为1。section可以指定任意的段寄存器作为段前缀，默认的段寄存器在不同的情况下不一样。如果你在指令中指定了默认的段前缀，则编译器在目标代码中不会产生此段前缀代码。
 
 下面是一些例子：
 
--4(%ebp)：base=%ebp，displacement=-4，section没有指定，由于base＝%ebp，所以默认的section=%ss，index,scale没有指定，则index为0。
+-4\(%ebp\)：base=%ebp，displacement=-4，section没有指定，由于base＝%ebp，所以默认的section=%ss，index,scale没有指定，则index为0。
 
- 
+foo\(,%eax,4\)：index=%eax，scale=4，displacement=foo。其它域没有指定。这里默认的section=%ds。
 
-foo(,%eax,4)：index=%eax，scale=4，displacement=foo。其它域没有指定。这里默认的section=%ds。
-
- 
-
-foo(,1)：这个表达式引用的是指针foo指向的地址所存放的值。注意这个表达式中没有base和index，并且只有一个逗号，这是一种异常语法，但却合法。
-
-
-
- 
+foo\(,1\)：这个表达式引用的是指针foo指向的地址所存放的值。注意这个表达式中没有base和index，并且只有一个逗号，这是一种异常语法，但却合法。
 
 %gs:foo：这个表达式引用的是放置于%gs段里变量foo的值。
 
- 
+如果call和jump操作在操作数前指定前缀“_”，则表示是一个绝对地址调用/跳转，也就是说jmp/call指令指定的是一个绝对地址。如果没有指定"_"，则操作数是一个相对地址。
 
-如果call和jump操作在操作数前指定前缀“*”，则表示是一个绝对地址调用/跳转，也就是说jmp/call指令指定的是一个绝对地址。如果没有指定"*"，则操作数是一个相对地址。
+任何指令如果其操作数是一个内存操作，则指令必须指定它的操作尺寸\(byte,word,long），也就是说必须带有指令后缀\(b,w,l\)。
 
- 
+| **AT&T** **格式** | **Intel** **格式** |
+| :--- | :--- |
+| movl -4\(%ebp\), %eax | mov eax, \[ebp - 4\] |
+| movl array\(, %eax, 4\), %eax | mov eax, \[eax\*4 + array\] |
+| movw array\(%ebx, %eax, 4\), %cx | mov cx, \[ebx + 4\*eax + array\] |
+| movb $4, %fs:\(%eax\) | mov fs:eax, 4 |
 
-任何指令如果其操作数是一个内存操作，则指令必须指定它的操作尺寸(byte,word,long），也就是说必须带有指令后缀(b,w,l)。
-
-| **AT&T** **格式**              | **Intel** **格式**            |
-| ------------------------------ | ----------------------------- |
-| movl -4(%ebp), %eax            | mov eax, [ebp - 4]            |
-| movl array(, %eax, 4), %eax    | mov eax, [eax*4 + array]      |
-| movw array(%ebx, %eax, 4), %cx | mov cx, [ebx + 4*eax + array] |
-| movb $4, %fs:(%eax)            | mov fs:eax, 4                 |
-
-```
+```text
 #mov byte ptr es:[160 * 5 + 40 * 2],al
 ```
 
-%es:(160 * 5 + 40 * 2)
+%es:\(160  _5 + 40_  2\)
 
-### 小结
+#### 小结
 
 昨天，我发现，在loop上使用write/print，将进入死循环。原因是write等破坏了循环中的ecx的值。
 
@@ -1571,7 +1469,7 @@ foo(,1)：这个表达式引用的是指针foo指向的地址所存放的值。�
 
 后来，我又找到了直接回答我的问题的英文资料。
 
-https://cs.lmu.edu/~ray/notes/gasexamples/
+[https://cs.lmu.edu/~ray/notes/gasexamples/](https://cs.lmu.edu/~ray/notes/gasexamples/)
 
 这份资料是64位模式下的代码。如果有能力，我更应该直接学64位。这个，学了就有用。可是，我没有相关资料，没有可供参考的。只能先学32位，尽管不会有作用。
 
@@ -1579,19 +1477,19 @@ https://cs.lmu.edu/~ray/notes/gasexamples/
 
 总共耗费时间：1小时55分。泛读资料，却没解决问题。可以定性为，浪费时间，低效。
 
-### 条件跳转
+#### 条件跳转
 
-![image-20201121145110301](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121145110301.png)
+![image-20201121145110301](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121145110301.png)
 
-![image-20201121145333769](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121145333769.png)
+![image-20201121145333769](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121145333769.png)
 
-### 循环指令
+#### 循环指令
 
-![image-20201121150446395](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121150446395.png)
+![image-20201121150446395](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121150446395.png)
 
-### 遍历数组
+#### 遍历数组
 
-```assembly
+```text
 # signtest.s - An example of using the sign flag
 .section .data
 value:
@@ -1616,96 +1514,95 @@ loop:
 
 `pushl value(, %edi, 4)`，很陌生的语法，不知道它的意思，也不会用。
 
-### 流程控制
+#### 流程控制
 
-#### if
+**if**
 
-![image-20201121151723849](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121151723849.png)
+![image-20201121151723849](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121151723849.png)
 
-#### for
+**for**
 
-![image-20201121152512871](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121152512871.png)
+![image-20201121152512871](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121152512871.png)
 
 for结构的第三个（一般是自增或自减），原来是和循环体一起执行的。这更新了我的认识。我一直将二者分为两个部分。
 
-### 处理字符串
+#### 处理字符串
 
 使用gdb
 
-```shell
-14	   movsw
+```text
+14       movsw
 (gdb) x/s &output
-0x804a018 <output>:	"T"
+0x804a018 <output>:    "T"
 (gdb) s
-15	   movsl
+15       movsl
 (gdb) x/s &output
-0x804a018 <output>:	"Thi"
+0x804a018 <output>:    "Thi"
 (gdb) s
-17	   movl $1, %eax
+17       movl $1, %eax
 (gdb) x/s &output
-0x804a018 <output>:	"This is"
+0x804a018 <output>:    "This is"
 (gdb) s
-18	   movl $0, %ebx
+18       movl $0, %ebx
 (gdb) x/s &output
-0x804a018 <output>:	"This is"
+0x804a018 <output>:    "This is"
 (gdb) s
-19	   int $0x80
+19       int $0x80
 ```
 
 看不懂书本。运行结果也和书本说明不一致。
 
-## 定义数据元素
+### 定义数据元素
 
 .data
 
-.rodata	只读模式访问的数据
+.rodata 只读模式访问的数据
 
-![image-20201121164947087](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121164947087.png)
+![image-20201121164947087](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121164947087.png)
 
-### 定义静态符号
+#### 定义静态符号
 
-![image-20201121165136417](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121165136417.png)
+![image-20201121165136417](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121165136417.png)
 
-### bss段
+#### bss段
 
-![image-20201121165503853](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121165503853.png)
+![image-20201121165503853](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121165503853.png)
 
 bss段的数据不必初始化，不会包含在程序中。
 
-### movx
+#### movx
 
-![image-20201121165727613](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121165727613.png)
+![image-20201121165727613](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121165727613.png)
 
-#### 在内存和寄存器之间传递数据
+**在内存和寄存器之间传递数据**
 
-```assembly
+```text
 # 从内存传到寄存器
 movl value, %eax
 # 从寄存器到内存
 movl %eax, value
 # 使用变址的内存地址
-
 ```
 
-#### 变址的内存地址
+**变址的内存地址**
 
-![image-20201121170421684](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121170421684.png)
+![image-20201121170421684](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121170421684.png)
 
-Offset_address，是在base_address的基础上偏移一定数量。
+Offset\_address，是在base\_address的基础上偏移一定数量。
 
-#### 使用间接寄存器寻址
+**使用间接寄存器寻址**
 
 `movl %edx, -4(%edi)`
 
-#### 数据交换指令
+**数据交换指令**
 
-![image-20201121172144772](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121172144772.png)
+![image-20201121172144772](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201121172144772.png)
 
-### 条件传送指令
+#### 条件传送指令
 
 如 `CMOV`
 
-### 小结
+#### 小结
 
 下午在干什么？
 
@@ -1717,25 +1614,23 @@ Offset_address，是在base_address的基础上偏移一定数量。
 6. 对汇编，能看多快就看多快，能理解多少就理解多少，非基本知识（比如，if、for、写函数），遇到问题，实在解决不了，就先记下。不要懒得记。记下来，以后就可能回头看。不记，当时好像快点。可是，这种快，有什么效果呢？我要的是，能够懂得越来越多，原来不懂的东西，以后能有机会弄懂。
 7. 不再看书，而是直接看汇编代码，看不懂再看书。
 
-## 待整理的参考资料
+### 待整理的参考资料
 
-汇编语言知多少(四): AT&T 汇编语法
+汇编语言知多少\(四\): AT&T 汇编语法
 
-https://www.jianshu.com/p/0480e431f1d7
+[https://www.jianshu.com/p/0480e431f1d7](https://www.jianshu.com/p/0480e431f1d7)
 
-## 64位 AT&T汇编的寄存器
+### 64位 AT&T汇编的寄存器
 
 1. 有16个常用的64位寄存器
+2. %rax, %rbx, %rcx , %rdx, %rsi, %rdi, %rbp, %rsp \(和 8086汇编类似 \)
+3. %r8, %r9, %r10, %r11, %r12, %r13, %r14, %r15
+4. 寄存器的具体用途
+5. **%rax** 作为函数返回值使用.
+6. **%rsp** 指向栈顶.
+7. %rdi,  %rsi,  %rdx,  %rcx,  %r8,  %r9,  %r10等寄存器用于存放函数参数.
 
-- %rax,  %rbx,  %rcx ,  %rdx,  %rsi,  %rdi,  %rbp,  %rsp (和 8086汇编类似 )
-- %r8, %r9, %r10, %r11, %r12, %r13, %r14, %r15
-
-1. 寄存器的具体用途
-
-- **%rax** 作为函数返回值使用.
-- **%rsp** 指向栈顶.
-- %rdi,  %rsi,  %rdx,  %rcx,  %r8,  %r9,  %r10等寄存器用于存放函数参数.
-
-![img](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/1208639-9c29243af0edc5f8.png)
+![img](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/1208639-9c29243af0edc5f8.png)
 
 返回地址，是编译器自动入栈的。
+
