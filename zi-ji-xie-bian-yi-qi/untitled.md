@@ -1768,8 +1768,11 @@ Pi 的值 = 3.141593
 整个过程是这样的：
 
 1. 遍历到main节点，生成_start模板 startCode，调用函数部分使用占位符flag。
-2. 遍历到变量链表，创建`variable_hash_table` 。
+2. 遍历到变量链表，加入`variable_hash_table` 。
 3. 遍历assignStmtNode链表，生成变量汇编模板 variableCode。
+   1. 根据变量名，在`variable_hash_table` 查找该变量的变量类型。
+      1. 若变量是字符串，生成变量汇编模板。
+      2. 变量是整型，不处理。
 4. 处理callNode，生成调用函数的汇编模板。
    1. 反转实参单链表。
    2. 遍历实参单链表，生成入栈汇编代码 pushCode。
