@@ -556,11 +556,13 @@ params:
 打算怎么办？
 
 1. 搜索？
+   
    1. 非上策。这个问题比较依赖场景，搜索适合有固定场景和解决方案的问题，例如，编译器的报错信息，vue发送http请求等。
 2. 看解析sql的demo D？
    1. 上面尝试过的方案中，我已经在规则中模仿D了，不成功。
    2. 也不好模仿，action不同。
 3. 看bison书？
+   
    1. 大海捞针。
 4. 凭直觉换方案，然后一次次尝试，试图感动编译器？
    1. 这是我一贯的做法。绝对不行。
@@ -1771,3 +1773,60 @@ Pi 的值 = 3.141593
 
 时间消耗1个小时10分钟。
 
+cg.s: Warning: end of file not at end of a line; newline inserted
+
+解决：在最后一行末尾敲入一个enter键，解决了问题。
+
+flex匹配字符串中的换行，费了很多时间才试验出来。查资料没用。
+
+```shell
+[a-z_A-Z0-9:%=\\n]*  { yylval.strval = strdup(yytext);  return STR;  }
+```
+
+```c
+int main(int argc){
+    char *str;
+    int x;
+    str = "str2=%d\n";
+    x = 18;
+    printf(str, x);
+    return 0;
+}
+##
+```
+
+## 生成汇编语言后
+
+把高级语言转为汇编语言后，剩下的工作，只是使用汇编器来编译汇编代码生成可执行程序，没有多少工作量。
+
+例如：
+
+```shell
+#! /bin/bash
+
+echo "filename:$0"
+
+code=$1
+echo "code:$1"
+
+
+as -gstabs -o $code.o $code.s
+ld -dynamic-linker /lib/ld-linux.so.2 -o $code -lc $code.o
+```
+
+这个文件在centos-i386容器中，文件名是c.sh。使用它编译汇编代码：c.sh filename，不加文件后缀。
+
+最后两条命令：
+
+```shell
+as -gstabs -o $code.o $code.s
+ld -dynamic-linker /lib/ld-linux.so.2 -o $code -lc $code.o
+```
+
+不能在macOSX上执行，在centos-i386上可以正确执行。
+
+而我的生成汇编代码的C代码，应该不能在centos-i386上执行，所以，我不能写一个“编译、生成可执行文件”的完整编译器模型了。
+
+不过，只能生成的汇编代码，能够在i386系统上编译执行，就行了。
+
+可以正式开始写golang编译器了。
