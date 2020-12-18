@@ -1830,3 +1830,36 @@ ld -dynamic-linker /lib/ld-linux.so.2 -o $code -lc $code.o
 不过，只能生成的汇编代码，能够在i386系统上编译执行，就行了。
 
 可以正式开始写golang编译器了。
+
+参考资料
+
+writing-your-own-toy-compiler
+
+https://gnuu.org/2009/09/18/writing-your-own-toy-compiler/
+
+中文版
+
+https://www.cnblogs.com/linucos/archive/2012/09/26/2704387.html
+
+
+
+## 临时
+
+Vim中显示不可见字符
+
+`cat -A file`可以把文件中的所有可见的和不可见的字符都显示出来，
+
+只需要`:set invlist`即可以将不可见的字符显示出来，例如，会以`^I`表示一个tab符，`$`表示一个回车符等。`:set nolist`可以回到正常的模式。
+
+vim字符编码设置
+
+vim的设置一般放在/etc/vimrc文件中，不过，建议不要修改它。可以修改~/.vimrc文件（默认不存在，可以自己新建一个），写入所希望的设置。
+
+```shell
+:set encoding=utf-8
+:set fileencodings=ucs-bom,utf-8,cp936
+```
+
+# centos : yacc&lex gcc cannot find -ll/-lfl
+
+yum install flex flex-devel
