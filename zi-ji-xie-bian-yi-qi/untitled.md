@@ -1560,9 +1560,7 @@ int main(int argc){
 }
 ```
 
-
-
-```assembly
+```text
         .section        .rodata
 .LC0:
         .string "str=%d"
@@ -1609,9 +1607,7 @@ int main(int argc){
 }
 ```
 
-
-
-```assembly
+```text
         .section        .rodata
 .LC0:
         .string "str=%d"
@@ -1651,7 +1647,7 @@ main:
 
 ### 生成汇编代码
 
-```assembly
+```text
 .section .data
 str:
     .asciz  "hello,world:%d\n"
@@ -1668,11 +1664,11 @@ _start:
     int $0x80
 ```
 
-这就是我要生成的汇编代码，分为三部分：_start模板、call模板、变量。
+这就是我要生成的汇编代码，分为三部分：\_start模板、call模板、变量。
 
-_start模板
+\_start模板
 
-```assembly
+```text
 .section .text
 .global _start
 _start:
@@ -1684,7 +1680,7 @@ _start:
 
 call 模板
 
-```assembly
+```text
 pushl $7
 pushl $str
 call printf
@@ -1692,21 +1688,16 @@ call printf
 
 变量
 
-```assembly
+```text
 .section .data
 str:
     .asciz  "hello,world:%d\n"
     len = . - str
 ```
 
-在_start模板中使用占位符，插入call模板，使用的C函数是？
+在\_start模板中使用占位符，插入call模板，使用的C函数是？
 
-> The printf() family of functions produces output according to a format as described below.  The printf() and vprintf() func-
->      tions write output to stdout, the standard output stream; fprintf() and vfprintf() write output to the given output stream;
->      dprintf() and vdprintf() write output to the given file descriptor; sprintf(), snprintf(), vsprintf(), and vsnprintf() write to
->      the character string str; and asprintf() and vasprintf() dynamically allocate a new string with malloc(3).
-
-
+> The printf\(\) family of functions produces output according to a format as described below. The printf\(\) and vprintf\(\) func- tions write output to stdout, the standard output stream; fprintf\(\) and vfprintf\(\) write output to the given output stream; dprintf\(\) and vdprintf\(\) write output to the given file descriptor; sprintf\(\), snprintf\(\), vsprintf\(\), and vsnprintf\(\) write to the character string str; and asprintf\(\) and vasprintf\(\) dynamically allocate a new string with malloc\(3\).
 
 使用`sprintf`。c函数真奇怪，使用指针来获取结果，而不是直接返回。下面是使用`sprintf`的例子。
 
@@ -1720,26 +1711,26 @@ int main()
 
    sprintf(str, "Pi 的值 = %f", M_PI);
    puts(str);
-   
+
    return(0);
 }
 ```
 
-```shell
+```text
 chugangdeMacBook-Pro:c-example cg$ gcc -o sprintf-demo sprintf-demo.c
 chugangdeMacBook-Pro:c-example cg$ ./sprintf-demo
 Pi 的值 = 3.141593
 ```
 
-存储变量的哈希表variable_hash_table，也是个难点。
+存储变量的哈希表variable\_hash\_table，也是个难点。
 
-​		这是简化后的场景。实际场景中，存在同名变量，这个哈希表不能满足要求。
+​ 这是简化后的场景。实际场景中，存在同名变量，这个哈希表不能满足要求。
 
 我设计成这样：
 
-```json
+```javascript
 [
-	['str','char','hello'],	// 变量名，变量类型，变量汇编模板
+    ['str','char','hello'],    // 变量名，变量类型，变量汇编模板
 ]
 ```
 
@@ -1755,7 +1746,7 @@ Pi 的值 = 3.141593
 
 整个过程是这样的：
 
-1. 遍历到main节点，生成_start模板 startCode，调用函数部分使用占位符flag。
+1. 遍历到main节点，生成\_start模板 startCode，调用函数部分使用占位符flag。
 2. 遍历到变量链表，加入`variable_hash_table` 。
 3. 遍历assignStmtNode链表，生成变量汇编模板 variableCode。
    1. 根据变量名，在`variable_hash_table` 查找该变量的变量类型。
