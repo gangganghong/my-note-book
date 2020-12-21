@@ -35,3 +35,7 @@
 * [NASM汇编](zi-ji-xie-cao-zuo-xi-tong/nasm-hui-bian.md)
 * [《自己动手写操作系统》笔记](zi-ji-xie-cao-zuo-xi-tong/zi-ji-dong-shou-xie-cao-zuo-xi-tong-bi-ji.md)
 
+---
+
+* [《x86汇编语言：从实模式到保护模式》阅读笔记](x86-hui-bian-yu-yan-cong-shi-mo-shi-dao-bao-hu-mo-shi-yue-du-bi-ji.md)
+
