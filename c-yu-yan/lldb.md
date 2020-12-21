@@ -43,6 +43,16 @@ p root
 exit
 ```
 
+### 断点调试
+
+文件断点
+
+breakpoint set -f parser.c -l 504
+
+函数断点
+
+b newCode
+
 ### 资料
 
 \[LLDB十分钟快速教程\]\([https://zhuanlan.zhihu.com/p/106415182](https://zhuanlan.zhihu.com/p/106415182)\)

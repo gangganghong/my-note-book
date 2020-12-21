@@ -1,3 +1,7 @@
+---
+description: 主要是笔记。
+---
+
 # 《自己动手写操作系统》笔记
 
 /Users/cg/MYDOSBox/asm2/chapter1/a/boot.bin

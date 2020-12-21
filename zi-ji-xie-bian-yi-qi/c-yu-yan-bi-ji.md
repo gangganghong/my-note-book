@@ -45,21 +45,17 @@ int main()
 #include <stdio.h>
 #include <string.h>
 #include<stdlib.h>
- 
+
 int main ()
 {
    char command[50];
- 
+
    strcpy( command, "ls -l" );
    system(command);
- 
+
    return(0);
 }
 ```
-
-
-
-
 
 ## 单元测试
 
@@ -67,24 +63,13 @@ int main ()
 
 `Segmentation fault: 11` 。
 
-chugangdeMacBook-Pro:Downloads cg$ tar -jxvf CUnit-2.1-3.tar.bz2
-tar: Error opening archive: Unrecognized archive format
-
-
-
-
+chugangdeMacBook-Pro:Downloads cg$ tar -jxvf CUnit-2.1-3.tar.bz2 tar: Error opening archive: Unrecognized archive format
 
 tar -jxvf CUnit-2.1-3.bz2
 
-chugangdeMacBook-Pro:CUnit cg$ make
-cd .. && /Library/Developer/CommandLineTools/usr/bin/make  am--refresh
-	 [../aclocal.m4] Error 2
+chugangdeMacBook-Pro:CUnit cg$ make cd .. && /Library/Developer/CommandLineTools/usr/bin/make am--refresh \[../aclocal.m4\] Error 2
 
-
-
-CUnit*# aclocal
-
-
+CUnit\*\# aclocal
 
 automake: error: 'configure.ac' is required
 
@@ -94,35 +79,23 @@ CUnit 不是一个好工具，同样的下载链接，下载到不同的代码�
 
 耗费时间：1小时15分。
 
-sudo cp ./lib/libgtest*.a  /usr/local/lib
-
-
+sudo cp ./lib/libgtest\*.a /usr/local/lib
 
 ### c++中的nullptr时报错：Use of undeclares identifier 'nullptr'
 
-编译时加flag：　--std=c++11
+编译时加flag： --std=c++11
 
 C代码用g++编译，出现特别多不理解的错误，而用gcc编译是没问题的。
 
-                    ^
-../fb1-5funcs.c:643:10: error: 'operator=' cannot be the name of a variable or data member
-    char operator = nodeType;
-         ^
-../fb1-5funcs.c:643:20: error: expected ';' at end of declaration
-    char operator = nodeType;
-                   ^
-                   ;
+```text
+                ^
+```
+
+../fb1-5funcs.c:643:10: error: 'operator=' cannot be the name of a variable or data member char operator = nodeType; ^ ../fb1-5funcs.c:643:20: error: expected ';' at end of declaration char operator = nodeType; ^ ;
 
 放弃使用gtest测试c了。
 
+p variableHashTable-&gt;variableTable\[0\]-&gt;name
 
-
-p variableHashTable->variableTable[0]->name
-
-(lldb) p strcmp(codeStrTable->funcCodeTable[0].funcName, funcName)
-error: <user expression 18>:1:1: 'strcmp' has unknown return type; cast the call to its declared return type
-strcmp(codeStrTable->funcCodeTable[0].funcName, funcName)
-^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-(lldb) p (int)strcmp(codeStrTable->funcCodeTable[0].funcName, funcName)
-(int) $14 = 0
+\(lldb\) p strcmp\(codeStrTable-&gt;funcCodeTable\[0\].funcName, funcName\) error: :1:1: 'strcmp' has unknown return type; cast the call to its declared return type strcmp\(codeStrTable-&gt;funcCodeTable\[0\].funcName, funcName\) ^~~~~~~~~~~~~~~~~ \(lldb\) p \(int\)strcmp\(codeStrTable-&gt;funcCodeTable\[0\].funcName, funcName\) \(int\) $14 = 0
 
