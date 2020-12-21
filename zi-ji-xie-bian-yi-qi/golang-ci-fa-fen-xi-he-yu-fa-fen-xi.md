@@ -314,3 +314,17 @@ https://zhuanlan.zhihu.com/p/74627059
 
 ***语法格式二：`call dword ptr 内存单元地址`\***
 ***汇编解释二：`(1) push CS (2) push IP (3) jmp dword ptr 内存单元地址`\***
+
+yacc: command not found错误解决办法
+
+yum install install -y byacc
+
+
+gcc -g -o tcc lex.yy.o fb1-5.o fb1-5funcs.c -ll -std=c99
+/usr/bin/ld: cannot find -ll
+collect2: error: ld returned 1 exit status
+
+-ll 表示-l (l) 第一个l表示 -l 表示要连接一个库，第二个l表示，库名为 l.so, 或者l.a
+
+解决：
+yum install flex flex-devel
