@@ -13,6 +13,72 @@ description: 主要是笔记。
 /Users/cg/data/code/wheel/asm2/chapter3/a/boot.bin
 /Users/cg/data/code/wheel/c/pegasus-os/experiment/boot.bin
 
+## 书本笔记
+
+### 特权级
+
+#### RPL
+
+RPL是请求特权级，是选择子的第0~~1位。
+
+指令是资源的请求者。
+
+指令“请求”、“访问”其他资源的能力等级，就是请求特权级。
+
+不单独设置一条指令的请求特权级，而是用代码段为单位来设置这个代码段内的所有指令的特权级。
+
+指令特权级存储在该指令所在代码段的选择子的RPL中。
+
+CPU的当前特权级，就是正在执行的指令的请求特权级，所以，cs.RPL就是CPU的当前特权级。
+
+#### 全称
+
+DPL：Descriptor Privilege Level
+
+RPL：Request Privilege Level
+
+CPL：Current Privilege Level
+
+### 权限检查规则
+
+![image-20201229194450054](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201229194450054.png)
+
+#### 一致性代码
+
+![image-20201229195107246](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201229195107246.png)
+
+#### 问题
+
+1. CPU的当前特权级，是不是CPL？
+
+2. 选择子中有RPL，段描述符中有DPL。一个段描述符的选择子，为何都需要特权等级属性？
+   1. RPL和DPL不总是相等。
+   2. RPL是真正请求资源的访问者的权限。在各种门中，指向目标代码段描述符的选择子。当前门描述符的RPL和目标代码段的DPL不是同一个代码段的。
+   3. 通过门，能让低特权级调用高特权级。为啥可以？我不记得具体过程。想知道，可以看《操作系统真相还原》5.4.5。
+
+### 一致与非一致
+
+![image-20201229171249950](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201229171249950.png)
+
+完全不懂这个图。
+
+### TSS
+
+#### TSS结构图
+
+![image-20201229173858214](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201229173858214.png)
+
+TSS，任务状态段。
+
+SS0、SS1、SS2分别是特权级0、1、2的栈，SS是当前使用的栈。
+
+1. 低特权级向高特权级转移，会挑选TSS中的目标代码段的栈，即从SS0、SS1、SS2中选择一个，并将自身代码段的返回地址由CPU压入目标代码段的栈中。在调用函数的汇编代码中，我见过了。
+2. 高特权级向低特权级返回，用 ret 、reft 等命令完成，从自己使用的栈中取出低特权级的代码段的地址，返回。由CPU自动完成。在返回前，需要将当前使用的栈更新为低特权级代码的栈。
+
+#### TR
+
+TR是寄存器，类似GDT的寄存器gdtr。
+
 ## 代码理解
 
 ```assembly
@@ -33,11 +99,13 @@ description: 主要是笔记。
 	mov	byte [LABEL_DESC_CODE32 + 7], ah
 ```
 
+#### 段描述符格式图
+
 ![image-20201226230803303](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201226230803303.png)
 
 结合图理解代码。
 
-
+#### 选择子结构图
 
 ![image-20201227000139645](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201227000139645.png)
 
