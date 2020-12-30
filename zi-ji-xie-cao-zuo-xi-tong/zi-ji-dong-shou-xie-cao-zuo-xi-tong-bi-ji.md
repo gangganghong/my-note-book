@@ -15,6 +15,18 @@ description: 主要是笔记。
 
 ## 书本笔记
 
+### 寄存器
+
+![image-20201230084410766](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230084410766.png)
+
+### 跳转
+
+长跳转、短跳转。详情见书本3.2.4.3。
+
+![image-20201229221758564](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201229221758564.png)
+
+![image-20201229221825170](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201229221825170.png)
+
 ### 特权级
 
 #### RPL
@@ -39,9 +51,11 @@ RPL：Request Privilege Level
 
 CPL：Current Privilege Level
 
-### 权限检查规则
+#### 权限检查规则
 
 ![image-20201229194450054](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201229194450054.png)
+
+![image-20201229221154337](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201229221154337.png)
 
 #### 一致性代码
 
@@ -78,6 +92,42 @@ SS0、SS1、SS2分别是特权级0、1、2的栈，SS是当前使用的栈。
 #### TR
 
 TR是寄存器，类似GDT的寄存器gdtr。
+
+### 分页
+
+#### 分页机制示意图
+
+![image-20201230064426687](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230064426687.png)
+
+图画得很清楚，但图上面的文字写得很不好懂。我到现在还没理解它的意思，觉得它是错误的。《操作系统真相还原》中对分页机制的讲解就非常好懂。
+
+#### 页目录项和页表项结构
+
+![image-20201230071243833](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230071243833.png)
+
+#### 页目录表和页表的关系、内存布局
+
+![image-20201230073301439](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230073301439.png)
+
+#### TLB
+
+![image-20201230073824810](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230073824810.png)
+
+#### 启用分页机制
+
+只需做好三件事：
+
+![image-20201230072003022](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230072003022.png)
+
+##### cr3
+
+![image-20201230071623444](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230071623444.png)
+
+##### cr0
+
+![image-20201230072419504](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230072419504.png)
+
+![image-20201230072510197](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230072510197.png)
 
 ## 代码理解
 
@@ -313,7 +363,7 @@ SegCode32Len	equ	$ - LABEL_SEG_CODE32
 ; END of [SECTION .s32]
 ```
 
-### b
+#### b
 
 ![image-20201228205716618](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201228205716618.png)
 
@@ -702,7 +752,7 @@ Code16Len	equ	$ - LABEL_SEG_CODE16
 
 根据这张图，LABEL_GO_BACK_TO_REAL 指代一条机器指令，`mov	[LABEL_GO_BACK_TO_REAL+3], ax;` 更改了这条机器码的的Segment部分，即段基址，是cs。这条指令的构成是：操作码 + 偏移量 + 段基址。
 
-### c
+#### c
 
 ```assembly
 ; ==========================================
@@ -1046,4 +1096,50 @@ SA_TIG		EQU	0	; ┓TI
 SA_TIL		EQU	4	; ┛
 ;----------------------------------------------------------------------------
 ```
+
+#### f
+
+````assembly
+; 启动分页机制 --------------------------------------------------------------
+SetupPaging:
+	; 为简化处理, 所有线性地址对应相等的物理地址.
+
+	; 首先初始化页目录
+	mov	ax, SelectorPageDir	; 此段首地址为 PageDirBase
+	mov	es, ax		; 不知道作用是什么。
+	mov	ecx, 1024		; 共 1K 个表项。设置循环次数是1024次
+	xor	edi, edi		; 设置为0
+	xor	eax, eax
+	mov	eax, PageTblBase | PG_P  | PG_USU | PG_RWW	; 设置页表结构的属性部分
+.1:					; 用数字作标签并不好，完全可以改成.createPageDir
+	stosd			; 将eax的值复制到edi指向的内存，并递增edi。即，将页表存储到一个字节中。
+	; 为了简化, 所有页表在内存中是连续的。4096是2的12次方。每个页表大小是4KB，A、B页表相邻，B的页表地址是A的地址 + 4KB。
+	; 页表结构的低12位是属性部分，加4096不破坏前面设置的页表结构的属性，只增加了页表的地址。
+	add	eax, 4096
+	loop	.1
+
+	; 再初始化所有页表 (1K 个, 4M 内存空间)
+	mov	ax, SelectorPageTbl	; 此段首地址为 PageTblBase
+	mov	es, ax
+	mov	ecx, 1024 * 1024	; 共 1M 个页表项, 也即有 1M 个页
+	xor	edi, edi
+	xor	eax, eax
+	mov	eax, PG_P  | PG_USU | PG_RWW
+.2:
+	stosd
+	add	eax, 4096		; 每一页指向 4K 的空间
+	loop	.2
+
+	mov	eax, PageDirBase
+	mov	cr3, eax		; 设置cr3的值。cr3是crx系列寄存器（控制寄存器）之一，存储页目录表的物理地址
+	mov	eax, cr0
+	or	eax, 80000000h
+	mov	cr0, eax
+	jmp	short .3
+.3:
+	nop
+
+	ret
+; 分页机制启动完毕 ----------------------------------------------------------
+````
 
