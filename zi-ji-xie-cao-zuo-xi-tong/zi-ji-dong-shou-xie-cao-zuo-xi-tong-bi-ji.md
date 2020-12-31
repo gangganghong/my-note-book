@@ -15,6 +15,16 @@ description: 主要是笔记。
 
 ## 书本笔记
 
+### 获取内存
+
+![image-20201230162917205](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230162917205.png)
+
+![image-20201230162951930](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230162951930.png)
+
+![image-20201230163021838](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230163021838.png)
+
+![image-20201230163052311](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230163052311.png)
+
 ### 寄存器
 
 ![image-20201230084410766](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201230084410766.png)

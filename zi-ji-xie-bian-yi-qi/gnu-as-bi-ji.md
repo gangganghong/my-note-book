@@ -195,7 +195,7 @@ Docker
 
 ~~补码： 10、11、（不要对正数求反码，不符合此处的规则）~~
 
-​ ~~01 00~~
+ ~~01 00~~
 
 ~~10、11是带符号的数，前者最大值是，~~
 
@@ -831,7 +831,7 @@ The value is:16^C
 
 Loop 指令等价于：ecx = ecx - 1;ecx是否等于0。在echo中，无论是直接调用printf还是自己手工用系统调用输出字符串，都改变了ecx的值。执行完echo后，ecx的值也许是8，也许是-2，总之就是不等于0。那么，ecx将永远不会等于0，于是，出现了死循环。
 
-这又是一个极大的时间消耗点。大概消耗了三四个小时，快让我心急如焚。
+这又是一个极大的时间消耗点。大概消耗了三四个小时，让我心急如焚。
 
 1. 出现异常后，我首先对比其他代码。其他代码和我的没有本质区别。除了loop的巨大灾难，没有对loop和ecx特别着墨。
 2. 网络资料，只搜索一篇就是讲本问题的，但和我的问题，原因不同，那是因为环境不同导致的，如：DOS环境、16位、32位等。
@@ -1162,7 +1162,7 @@ debuginfo-install glibc-2.17-317.el7.i686
 4. 设置超级权限后，gdb提示缺少一些信息，安装。
 5. 最后可以了。
 
-![image-20201120124614228](https://github.com/gangganghong/my-note-book/tree/e05c1a28d94eab12dcbaced04ebf95605897f21d/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120124614228.png)
+![image-20201120124614228](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-bian-yi-qi/image-20201120124614228.png)
 
 ```text
 (gdb) x/c $output
