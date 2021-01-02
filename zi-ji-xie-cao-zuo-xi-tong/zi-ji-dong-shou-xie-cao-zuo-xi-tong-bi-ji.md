@@ -1178,3 +1178,112 @@ SetupPaging:
 ; 分页机制启动完毕 ----------------------------------------------------------
 ````
 
+### chapter4
+
+#### a
+
+```assembly
+
+;%define	_BOOT_DEBUG_	; 做 Boot Sector 时一定将此行注释掉!将此行打开后用 nasm Boot.asm -o Boot.com 做成一个.COM文件易于调试
+
+%ifdef	_BOOT_DEBUG_
+	org  0100h			; 调试状态, 做成 .COM 文件, 可调试
+%else
+	org  07c00h			; Boot 状态, Bios 将把 Boot Sector 加载到 0:7C00 处并开始执行
+%endif
+
+	jmp short LABEL_START		; Start to boot.
+	nop				; 这个 nop 不可少
+
+	; 值能任意确定还是必须按规定填写固定的值？
+	; 值中有十进制、十六进制
+	; 下面是 FAT12 磁盘的头
+	BS_OEMName	DB 'ForrestY'	; OEM String, 必须 8 个字节
+	BPB_BytsPerSec	DW 512		; 每扇区字节数
+	BPB_SecPerClus	DB 1		; 每簇多少扇区
+	BPB_RsvdSecCnt	DW 1		; Boot 记录占用多少扇区
+	BPB_NumFATs	DB 2		; 共有多少 FAT 表
+	BPB_RootEntCnt	DW 224		; 根目录文件数最大值
+	BPB_TotSec16	DW 2880		; 逻辑扇区总数
+	BPB_Media	DB 0xF0		; 媒体描述符
+	BPB_FATSz16	DW 9		; 每FAT扇区数
+	BPB_SecPerTrk	DW 18		; 每磁道扇区数
+	BPB_NumHeads	DW 2		; 磁头数(面数)
+	BPB_HiddSec	DD 0		; 隐藏扇区数
+	BPB_TotSec32	DD 0		; wTotalSectorCount为0时这个值记录扇区数
+	BS_DrvNum	DB 0		; 中断 13 的驱动器号
+	BS_Reserved1	DB 0		; 未使用
+	BS_BootSig	DB 29h		; 扩展引导标记 (29h)
+	BS_VolID	DD 0		; 卷序列号
+	BS_VolLab	DB 'OrangeS0.02'; 卷标, 必须 11 个字节
+	BS_FileSysType	DB 'FAT12   '	; 文件系统类型, 必须 8个字节  
+
+LABEL_START:
+	mov	ax, cs
+	mov	ds, ax
+	mov	es, ax
+	Call	DispStr			; 调用显示字符串例程
+	jmp	$			; 无限循环
+DispStr:
+	mov	ax, BootMessage
+	mov	bp, ax			; ES:BP = 串地址
+	mov	cx, 16			; CX = 串长度
+	；先指定 AH 寄存器
+	; 01H：设置光标形状。40×25 16 色 文本。
+	; 13H：在Teletype模式下显示字符串。640×480 256色
+	mov	ax, 01301h		; AH = 13,  AL = 01h
+	; 页号有啥作用？百度不到。
+	; BX显示模式属性。
+	; mov     bx, 002ch 绿色背景
+	; mov			bx,	032ch 一片黑色
+	; mov			bx, 0c2ch	一片黑色
+	mov	bx, 000ch		; 页号为0(BH = 0) 黑底红字(BL = 0Ch,高亮)
+	; dl 为0，有啥作用？
+	; DH＝行(Y坐标)
+	; DL＝列 (X坐标)
+	mov	dl, 0
+	int	10h			; int 10h
+	ret
+BootMessage:		db	"Hello, OS world!"
+times 	510-($-$$)	db	0	; 填充剩下的空间，使生成的二进制代码恰好为512字节
+dw 	0xaa55				; 结束标志
+```
+
+```assembly
+mov dh, 10
+mov	dl, 10
+int	10h			; int 10h
+```
+
+效果：
+
+![image-20210102201951820](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20210102201951820.png)
+
+```assembly
+; BH，页号。不知道啥干啥的。
+; BL，设置背景色和前景色。0d，背景色--黑，前景色--紫红
+mov	bx, 000dh
+```
+
+![image-20210102210554287](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20210102210554287.png)
+
+时间消耗点，int 10的调用。资料中说得不够清晰，密密麻麻一大页。
+
+耗费时间1个小时20分。
+
+1>创建新软盘pm.img，需要格式化，需要将pm.img设置为cg用户具有可写权限。
+
+2>int 0x10调用。资料很不好，密密麻麻，太多了。调用模式是：
+
+1. AH指定为13，表示打印字符串。
+2. 让bp指向字符串。es:bp = 串地址。
+3. DX，其实行列坐标。
+4. BH，页号。
+5. BL，被打印字符串的前景色与背景色。0d，是黑底紫红字；0C，是黑底红字。
+
+资料地址：https://www.cnblogs.com/magic-cube/archive/2011/10/19/2217676.html
+
+使用 INT 10H 中断服务程序时，先指定 AH 寄存器为下表编号其中之一，该编号表示欲调用的功用，而其他寄存器的详细说明，参考表后文字，当一切设定好之后再调用 INT 10H
+
+![image-20210102211050335](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20210102211050335.png)
+
