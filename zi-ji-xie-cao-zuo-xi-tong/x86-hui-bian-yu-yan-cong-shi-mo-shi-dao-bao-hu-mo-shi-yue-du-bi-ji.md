@@ -266,3 +266,8 @@ chugangdeMacBook-Pro:c-example cg$
 同样的段属性集合，属性值可以不同，这是由穿插在其中的无效位（界限值）决定的。（待验证）。
 
 这段汇编代码宏，只设置了三个参数，这不是固定的。只需要，满足段描述符的格式要求就可以了。
+
+## MBR、EBR、OBR
+
+![image-20201231135257450](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201231135257450.png)
+

@@ -13,7 +13,32 @@ description: 主要是笔记。
 /Users/cg/data/code/wheel/asm2/chapter3/a/boot.bin
 /Users/cg/data/code/wheel/c/pegasus-os/experiment/boot.bin
 
+## 时间消耗点
+
+1. 软盘结构及其数据读取，文字说明、代码。耗时三四个小时。看各种不同的讲解，看代码，分心。
+2. 
+
+## 工具
+
+bochs--can not connect to X server 问题
+
+解决：执行 startx，然后切换到非root用户。只能在虚拟机上运行，在连接到虚拟机的命令行工具上无效。
+
 ## 书本笔记
+
+### 软盘
+
+![image-20201231163731952](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201231163731952.png)
+
+![image-20201231163827164](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201231163827164.png)
+
+### 硬盘
+
+#### 机械硬盘
+
+![image-20201231170645288](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201231170645288.png)
+
+![image-20201231171607871](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201231171607871.png)
 
 ### 获取内存
 
