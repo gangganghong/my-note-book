@@ -2,7 +2,7 @@
 
 ## 产生签名的key
 
-```text
+```shell
 # 在产生的时候需要提供密钥和存储密码，后续会用到
 keytool -genkey -v -keystore my-release-key.keystore -alias my-key-alias -keyalg RSA -keysize 2048 -validity 10000
 mv my-release-key.keystore android/app/

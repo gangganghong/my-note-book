@@ -1817,25 +1817,28 @@ LABEL_FILENAME_FOUND:			; 找到 LOADER.BIN 后便来到这里继续
 	mov	ax, cx			; ax <- Sector 号
 
 LABEL_GOON_LOADING_FILE:
-	push	ax			; `.
+	push	ax			; `. 此时ax是根据簇号所计算出来的扇区号。
 	push	bx			;  |
 	mov	ah, 0Eh			;  | 每读一个扇区就在 "Booting  " 后面
 	mov	al, '.'			;  | 打一个点, 形成这样的效果:
 	mov	bl, 0Fh			;  | Booting ......
 	int	10h			;  |
 	pop	bx			;  |
-	pop	ax			; /
+	pop	ax			; / 此时ax是根据簇号所计算出来的扇区号。供ReadSector使用。
 	
 	; 根据簇号计算出的扇区号把文件读入内存
 	mov	cl, 1
 	call	ReadSector
-	pop	ax			; 取出此 Sector 在 FAT 中的序号
+	pop	ax			; 取出此 Sector 在 FAT 中的序号，簇号，供GetFATEntry使用。
 	; 读取该文件的下一个扇区号？还是簇号？
+	; 调用此函数后，存储在ax中的是簇号，当前文件的剩余部分存储在该簇号内存中。
 	call	GetFATEntry
 	; ax == 0FFFh时，ZF == 1，jz跳转
 	cmp	ax, 0FFFh
 	jz	LABEL_FILE_LOADED
-	push	ax			; 保存 Sector 在 FAT 中的序号
+	; 保存 Sector 在 FAT 中的序号。在根据簇号计算该簇对应的扇区号前存储原始簇号。再次调用本函数时需要这个簇号当参数。
+	; 比较奇特。当前参数，得出的结果是下一个参数。
+	push	ax			
 	mov	dx, RootDirSectors
 	add	ax, dx
 	add	ax, DeltaSectorNo
@@ -1941,7 +1944,7 @@ ReadSector:
 ; 函数名: GetFATEntry
 ;----------------------------------------------------------------------------
 ; 作用:
-;	找到序号为 ax 的 Sector 在 FAT 中的条目, 结果放在 ax 中
+;	找到序号为 ax 的 Sector 在 FAT 中的条目, 结果放在 ax 中。结果是该文件的剩余部分存储的簇所在序号。
 ;	需要注意的是, 中间需要读 FAT 的扇区到 es:bx 处, 所以函数一开始保存了 es 和 bx
 GetFATEntry:
 	push	es
