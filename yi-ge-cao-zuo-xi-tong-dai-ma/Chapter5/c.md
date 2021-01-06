@@ -732,3 +732,419 @@ keyboard: keymap=/usr/local/share/bochs/keymaps/x11-pc-us.map
 
 在实体机上使用root用户运行 `make`，然后再虚拟机上运行 `bochs -f bochsrc'。当bochs卡住时，输入 `c	。
 
+## 工具
+
+### xxd
+
+```shell
+[root@localhost b]# xxd -u -a -g 1 -c 16 -l 80 foobar
+00000000: 7F 45 4C 46 01 01 01 00 00 00 00 00 00 00 00 00  .ELF............
+00000010: 02 00 03 00 01 00 00 00 A0 80 04 08 34 00 00 00  ............4...
+00000020: 68 10 00 00 00 00 00 00 34 00 20 00 03 00 28 00  h.......4. ...(.
+00000030: 07 00 06 00 01 00 00 00 00 00 00 00 00 80 04 08  ................
+00000040: 00 80 04 08 64 01 00 00 64 01 00 00 05 00 00 00  ....d...d.......
+[root@localhost b]#
+```
+
+
+
+### readelf
+
+```shell
+[root@localhost e]# readelf -h kernel.bin
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              EXEC (Executable file)
+  Machine:                           Intel 80386
+  Version:                           0x1
+  Entry point address:               0x30400
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          1056 (bytes into file)
+  Flags:                             0x0
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         1
+  Size of section headers:           40 (bytes)
+  Number of section headers:         3
+  Section header string table index: 2
+```
+
+ 2's complement，整数二进制补码。
+
+```shell
+[root@localhost e]# readelf -l kernel.bin
+
+Elf file type is EXEC (Executable file)
+Entry point 0x30400
+There is 1 program header, starting at offset 52
+
+Program Headers:
+  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+  LOAD           0x000000 0x00030000 0x00030000 0x0040d 0x0040d R E 0x1000
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     .text
+```
+
+
+
+```shell
+[root@localhost e]# readelf -S kernel.bin
+There are 3 section headers, starting at offset 0x420:
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .text             PROGBITS        00030400 000400 00000d 00  AX  0   0 16
+  [ 2] .shstrtab         STRTAB          00000000 00040d 000011 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
+  L (link order), O (extra OS processing required), G (group), T (TLS),
+  C (compressed), x (unknown), o (OS specific), E (exclude),
+  p (processor specific)
+```
+
+Kernerl.bin 是由下面的代码编译而成的。
+
+```assembly
+
+; 编译链接方法
+; [root@XXX XXX]# nasm -f elf kernel.asm -o kernel.o
+; [root@XXX XXX]# ld -s -Ttext 0x30400 -o kernel.bin kernel.o
+; [root@XXX XXX]# 
+
+[section .text]	; 代码在此
+
+global _start	; 导出 _start
+
+_start:	; 跳到这里来的时候，我们假设 gs 指向显存
+	mov	ah, 0Fh				; 0000: 黑底    1111: 白字
+	mov	al, 'K'
+	mov	[gs:((80 * 1 + 39) * 2)], ax	; 屏幕第 1 行, 第 39 列。
+	jmp	$
+```
+
+不理解为何用readelf查看有3个section headers。
+
+### nm
+
+```shell
+[root@localhost e]# nm kernel.o
+00000000 T _start
+```
+
+
+
+## 临时笔记
+
+啦。就拿 Linux 来说，它的系统调用是先往 eax 寄存器中写入系统调用号，然后通过 Ox80 中断来实现的。
+
+重定位指的是文件里面所用的符号还没有安排地址，这些符号的地址需要将来与其他目标文件“组成”一个可执行文件时再重新定位（编排地址〉，这里的符号就是指该目标文件中所调用的函数或使用的变量，而这里的“组成”就是指链接。这些符号 般是位于其他文件中，所以在编译时不能确定其地址，需要在所有目标文件都到齐了，将它们链接到 起时再重新定位（编排地址）。由于不知道可执行文件由几个目标文件组成，所以 律在链接阶段对符号重新定位（编排地址）。哪怕是可执行文件只是由一个文件组成的，其目标文件中的符号也是未编址的，编址工作，即重定位，一律统一在链接阶段完成。
+
+macbook系统与centos 8系统的可执行文件格式不一样。同样的go代码，在这两个系统编译出的可执行文件，查看格式如下：
+
+```shell
+[root@localhost e]# file hello
+hello: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, not stripped
+```
+
+```shell
+chugangdeMacBook-Pro:array cg$ file arr1
+arr1: Mach-O 64-bit executable x86_64
+```
+
+
+
+```shell
+ld kernel/main.o -Ttext Oxe0001500 -e main -o kernel/kernel.bin
+```
+
+链接器ld默认把函数_start作为程序的入口地址。汇编中能用数字和字符串表示内存地址，所以ld也能用main作为程序的入口地址。
+
+-Ttext指定程序的虚拟内存地址，-e指定程序的入口地址。
+
+### 理解elf
+
+详情参考《操作系统真相还原》5.3.3、5.3.4。
+
+Loader.bin、mbr指定了本程序的入口地址，调用者根据约定好的入口地址调用它们。若不想事先商量好入口地址，可以采用“程序头+程序体”的方式组织mbr等二进制程序。调用者从程序头中读取程序的入口地址，然后将程序体复制到入口地址处（为啥不是直接跳转到入口地址处执行）。下面是为了帮助理解elf而自定义的一种程序。
+
+```assembly
+header:
+        program_length  dd      program_end - program_start
+        start_addr      dd      program_start
+
+body:
+program_start:
+        mov     ax,     0x1234
+        jmp     $
+program_end:
+```
+
+编译并运行
+
+```assembly
+[root@localhost e]# nasm -o header.bin header.s
+[root@localhost e]# chmod +x ./header.bin
+[root@localhost e]# file header.bin
+header.bin: data
+[root@localhost e]# ls
+Makefile  bochsrc   boot.asm  fat12hdr.inc  header.bin  kernel.asm  kernel.o  loader.asm  pm.inc
+a.img     bochsrc2  boot.bin  header        header.s    kernel.bin  load.inc  loader.bin
+[root@localhost e]# ./header.bin
+-bash: ./header.bin: cannot execute binary file: Exec format error
+[root@localhost e]# xxd -u -a -g 1 -c 16 -l 80 header.bin
+00000000: 05 00 00 00 08 00 00 00 B8 34 12 EB FE           .........4...
+```
+
+虽然header.bin也是二进制文件，但是它的入口地址不是机器指令，所以，不能直接执行。
+
+为啥不是直接跳转到入口地址处执行？若如此，需要在编译时将程序存放到某个物理地址。编译器并不做这个工作，链接器完成这项工作。好像不是不可以。但是，更顺畅的思路应该是，调用者获得被调用者的入口地址后，将被调用者的所有指令复制到入口地址。
+
+Window 下的可执行文件格式是 PE 如果您想说的是 EXE ，不要搞混了， EXE是扩展名，属于文件名的一部分，只是名字的后缀，它并不是真正的格式）， PE Portable Exeeutable, Linux 下可执行文件格式是 ELF 。
+
+ELF 指的是 Exeeutable and Linkable Format ，可执行链接格式。
+
+## 临时笔记
+
+/usr/include/gnu/stubs.h:7:11: fatal error: gnu/stubs-32.h: No such file or directory
+
+centos64位编译32位代码，出现/usr/include/gnu/stubs.h:7:27: 致命错误：gnu/stubs-32.h：没有那个文件或目录，需要安装32位的glibc库文件。
+
+​      安装32位glibc库文件命令：
+
+​      sudo yum install glibc-devel.i686(安装C库文件)
+
+​      sudo dnf install glibc-devel.i686(fedora命令)
+
+​     安装32位glibc++库文件命令
+
+​     sudo yum install libstdc++-devel.i686
+
+​     sudo dnf install libstdc++-devel.i686（fedora命令）
+
+Ubuntu解决命令：
+
+​      sudo apt-get install g++-multilib
+
+## bochs
+
+```shell
+b 0x7c00
+print-stack
+# 执行下一条指令，并打印下一条要执行的命令
+s
+# u 命令可以使用两个参数，第一个参数是跟在 / 后面地数字，指定返汇编出多少条指令；第二条参数用于指定一个内存地址，Bochs从这里开始反汇编操作。
+u/2 0x7c3e
+# 打印通用寄存器的数据，ax、bx、cx、dx
+r
+# 打印段寄存器的数据，cs、es、ss
+sreg
+xp /32wx 0x7c00
+```
+
+```shell
+<bochs:4> info gdt
+Global Descriptor Table (base=0x00000000000f9af7, limit=48):
+GDT[0x0000]=??? descriptor hi=0x00000000, lo=0x00000000
+GDT[0x0008]=??? descriptor hi=0x00000000, lo=0x00000000
+GDT[0x0010]=Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+GDT[0x0018]=Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+GDT[0x0020]=Code segment, base=0x000f0000, limit=0x0000ffff, Execute/Read, Non-Conforming, Accessed, 16-bit
+GDT[0x0028]=Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+You can list individual entries with 'info gdt [NUM]' or groups with 'info gdt [NUM] [NUM]'
+```
+
+汇编代码
+
+```assembly
+; GDT ------------------------------------------------------------------------------------------------------------------------------------------------------------
+;                                                段基址            段界限     , 属性
+LABEL_GDT:			Descriptor             0,                    0, 0						; 空描述符
+LABEL_DESC_FLAT_C:		Descriptor             0,              0fffffh, DA_CR  | DA_32 | DA_LIMIT_4K			; 0 ~ 4G
+LABEL_DESC_FLAT_RW:		Descriptor             0,              0fffffh, DA_DRW | DA_32 | DA_LIMIT_4K			; 0 ~ 4G
+LABEL_DESC_VIDEO:		Descriptor	 0B8000h,               0ffffh, DA_DRW                         | DA_DPL3	; 显存首地址
+; GDT ------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+GdtLen		equ	$ - LABEL_GDT
+GdtPtr		dw	GdtLen - 1				; 段界限
+		dd	BaseOfLoaderPhyAddr + LABEL_GDT		; 基地址
+
+; GDT 选择子 ----------------------------------------------------------------------------------
+SelectorFlatC		equ	LABEL_DESC_FLAT_C	- LABEL_GDT
+SelectorFlatRW		equ	LABEL_DESC_FLAT_RW	- LABEL_GDT
+SelectorVideo		equ	LABEL_DESC_VIDEO	- LABEL_GDT + SA_RPL3
+; GDT 选择子 ----------------------------------------------------------------------------------
+```
+
+只定义了四个GDT，为啥bochs打印出来六个GDT？
+
+我的推测：
+
+```
+LABEL_DESC_FLAT_C:		Descriptor             0,              0fffffh, DA_CR  | DA_32 | DA_LIMIT_4K			; 0 ~ 4G
+```
+
+对应GDT
+
+```
+GDT[0x0010]=Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+```
+
+
+
+```
+LABEL_DESC_FLAT_RW:		Descriptor             0,              0fffffh, DA_DRW | DA_32 | DA_LIMIT_4K			; 0 ~ 4G
+```
+
+
+
+对应GDT
+
+```
+GDT[0x0018]=Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+```
+
+上面的GDT，是在执行 lgdt [GdtPtr] 前的内容，所以不是在代码中设置的值。执行完 lgdt [GdtPtr] 后，打印gdt中的数据如下：
+
+```
+<bochs:6> info gdt
+Global Descriptor Table (base=0x000000000009013d, limit=31):
+GDT[0x0000]=??? descriptor hi=0x00000000, lo=0x00000000
+GDT[0x0008]=Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, 32-bit
+GDT[0x0010]=Data segment, base=0x00000000, limit=0xffffffff, Read/Write
+GDT[0x0018]=Data segment, base=0x000b8000, limit=0x0000ffff, Read/Write
+You can list individual entries with 'info gdt [NUM]' or groups with 'info gdt [NUM] [NUM]'
+```
+
+与汇编中创建gdt的代码完全吻合。
+
+```shell
+# 查看栈的内容
+<bochs:5> print-stack
+Stack address size 2
+ | STACK 0x90100 [0x61eb] (<unknown>)
+ | STACK 0x90102 [0x6f46] (<unknown>)
+ | STACK 0x90104 [0x7272] (<unknown>)
+ | STACK 0x90106 [0x7365] (<unknown>)
+ | STACK 0x90108 [0x5974] (<unknown>)
+ | STACK 0x9010a [0x0200] (<unknown>)
+ | STACK 0x9010c [0x0101] (<unknown>)
+ | STACK 0x9010e [0x0200] (<unknown>)
+ | STACK 0x90110 [0x00e0] (<unknown>)
+ | STACK 0x90112 [0x0b40] (<unknown>)
+ | STACK 0x90114 [0x09f0] (<unknown>)
+ | STACK 0x90116 [0x1200] (<unknown>)
+ | STACK 0x90118 [0x0200] (<unknown>)
+ | STACK 0x9011a [0x0000] (<unknown>)
+ | STACK 0x9011c [0x0000] (<unknown>)
+ | STACK 0x9011e [0x0000] (<unknown>)
+```
+
+
+
+```
+; 真正进入保护模式
+	jmp	dword SelectorFlatC:(BaseOfLoaderPhyAddr+LABEL_PM_START)
+```
+
+执行中实际是下面的语句
+
+```
+(0) Magic breakpoint
+Next at t=16998847
+(0) [0x000000090283] 9000:0000000000000283 (unk. ctxt): jmpf 0x0008:00090380      ; 66ea800309000800
+```
+
+SelectorFlatC 的地址变成 0x0008，不理解。
+
+00090380 是 BaseOfLoaderPhyAddr + 380 。LABEL_PM_START 在段内的偏移量是 380 吗？不知道如何人工计算。
+
+```
+BaseOfLoader		equ	 09000h	; LOADER.BIN 被加载到的位置 ----  段地址
+OffsetOfLoader		equ	  0100h	; LOADER.BIN 被加载到的位置 ---- 偏移地址
+
+BaseOfLoaderPhyAddr	equ	BaseOfLoader * 10h	; LOADER.BIN 被加载到的位置 ---- 物理地址 (= BaseOfLoader * 10h)
+```
+
+
+
+183:       66 ea 80 03 09 00       ljmpw  $0x9,$0x380
+
+反汇编
+
+objdump -D -b binary -m i386 loader.bin > loader-objdump.s
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+bochs 教程
+
+https://www.bytekits.com/bochs/bochs-show-mem-cmd.html
+
+
+
+[选择 conforming 还是 **non-conforming** ？](http://blog.chinaunix.net/uid-587665-id-2732926.html)
+
+ 
+
+分类：
+
+2009-05-05 00:19:51
+
+　　code segment descriptor 的 C 位表示 code segment 是 conforming 还是 **non-conforming** 类型，C = 1 代表 conforming 类型，C = 0 代表 **non-conforming**。conforming 类型可以允许低权限向高权限转移，而不需要通过 call-gate。低权限向高权限的 **non-conforming** 转移则必须通过 call-gate。
+
+显然，使用 **non-conforming** 比使用 conforming 更为安全，因为：
+
+**原因 １、当 far call/jmp 到 code segment 直接跳转时（使用 code segment selector）：**
+
+（１）选择 conforming 类型仅需要 CPL >= DPL 权限就可以了，也就是说：可以直接从低权限向高权限的 code segment 转移，但是 CPL 是不改变的。
+　　这样存在着隐患，由于 CPL（当前的 processor 权限）不改变，但是代码却从低权限转到了高权限，导致：若高权限的代码之中使用了高权限的指令，而 CPL 还停留在低权限上，执行这样的指令会导致异常发生，这是其一。
+　　其二：高权限的代码使用的是高权限的 stack，但由于 CPL 不变，导致不能发生正确的 stack 切换。
+
+（２）而选择 **non-conforming** 类型需要更严格的权限，需：CPL == DPL 且 RPL <= DPL。
+　　很明显，使用 **non-conforming** 类型不能从低权限转向高权限，必须 CPL == DPL，只能要同级权限之中转移。这样就避免了不必要的隐患。
+
+
+
+原因 2：当通过 call-gate 来 far call/jmp 到 code segment 时：
+
+（１）选择 conforming 类型的需要权限：(CPL <= DPLg) && (RPL <= DPLg) 并且 (CPL >= DPLs)
+（２）选择 **non-conforming** 虽然需要同样的权限：(CPL <= DPLg) && (RPL <= DPLg) 并且 (CPL >= DPLs)。
+　　但是，在 **non-conforming** 下仅允许使用 call 指令转移到高权限，不允许使用 jmp 指令转移到高权限代码。
+使用 jmp call-gate 导致产生两个问题：
+其一：jmp 指令不能正确返回到原调用的代码。由于没有将原 CS:RIP 入栈保存，系统服务例程 ret 时，将会出错。
+其二：由于不能正确返回，可能导致不能从高权限代码返回低权限代码，processor 将一直运行在高权限代码中。
+
+　　使用 jmp call-gate 指令到 **non-conforming** 仅允许同级转移，即：CPL <= DPLg && RPL<= DPLg 并且 CPL == DPLs
+　　jmp 指令只能同级转移（不能调用系统服务例程），使用 **non-conforming** 类型将不允许 jmp 指令转移到高权限代码，避免隐患。　　
+
+\-------------------------------------------------------------------------------
+
+　　综上所述两个原因，使用 **non-conforming** 类型更符合 x86 / x64 的保护机制。
+
+
+
+汇编学习网站：
+
+http://www.x86asm.com/#
+
