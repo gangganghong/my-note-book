@@ -1142,6 +1142,29 @@ https://www.bytekits.com/bochs/bochs-show-mem-cmd.html
 
 　　综上所述两个原因，使用 **non-conforming** 类型更符合 x86 / x64 的保护机制。
 
+一个GDT例子
+
+```shell
+0000000000000000111111111111111100000000110011111001101100000000
+<bochs:15> xp /2wt 0x0000000000090145
+[bochs]:
+0x0000000000090145 <bogus+       0>:	00000000000000001111111111111111	00000000110011111001101100000000
+<bochs:16> info gdt
+Global Descriptor Table (base=0x000000000009013d, limit=31):
+GDT[0x0000]=??? descriptor hi=0x00000000, lo=0x00000000
+GDT[0x0008]=Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+GDT[0x0010]=Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+GDT[0x0018]=Data segment, base=0x000b8000, limit=0x0000ffff, Read/Write, Accessed
+```
+
+这个gdt的定义
+
+```assembly
+LABEL_DESC_FLAT_C:		Descriptor             0,              0fffffh, DA_CR  | DA_32 | DA_LIMIT_4K			; 0 ~ 4G
+```
+
+拆解过，基本是吻合的，没有验证全部属性。
+
 
 
 汇编学习网站：
