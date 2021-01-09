@@ -26,6 +26,69 @@ bochs--can not connect to X server 问题
 
 ## 书本笔记
 
+### 进程restart
+
+![image-20210108181241749](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20210108181241749.png)
+
+
+
+```
+(0) [0x0000000306ea] 0008:00000000000306ea (unk. ctxt): lldt word ptr ss:[esp+72] ; 0f00542448
+<bochs:4> s
+Next at t=18317745
+(0) [0x0000000306ef] 0008:00000000000306ef (unk. ctxt): lea eax, ss:[esp+72]      ; 8d442448
+```
+
+
+
+```
+; ====================================================================================
+;				    restart
+; ====================================================================================
+restart:
+	mov	esp, [p_proc_ready]
+	lldt	[esp + P_LDT_SEL]
+	lea	eax, [esp + P_STACKTOP]			; 将一个内存地址直接赋给目的操作数
+	mov	dword [tss + TSS3_S_SP0], eax
+restart_reenter:
+	dec	dword [k_reenter]
+	pop	gs
+	pop	fs
+	pop	es
+	pop	ds
+	popad
+	add	esp, 4
+	iretd
+```
+
+
+
+在这里耗费了非常多时间。我不理解，esp + P_LDT_SEL 和 P_STACKTOP 的值相同，为何，书中说，esp + P_STACKTOP 是 regs 的末地址，而 esp + P_LDT_SEL 是 ldt_sel。
+
+![image-20210108182923588](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20210108182923588.png)
+
+
+
+
+
+![image-20210108183124423](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20210108183124423.png)
+
+
+
+结合 pop 和 push 的执行过程，可以知道： esp + 72 这个地址，是一个分界线，往
+
+### 8259A
+
+#### ICW1
+
+![image-20210107194242621](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20210107194242621.png)
+
+
+
+初始化连接方式和中断信号的触发方式：一片还是多片；电平还是边沿触发。
+
+需写入主片的0X20端口和从片的0XA0端口。
+
 ### 软盘
 
 ![image-20201231163731952](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201231163731952.png)
@@ -1998,5 +2061,7 @@ dw 	0xaa55				; 结束标志
 
 
 
+操作系统、汇编等笔记
 
+https://www.jianshu.com/p/ee2b60719563
 
