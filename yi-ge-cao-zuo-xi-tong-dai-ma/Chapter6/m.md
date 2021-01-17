@@ -211,6 +211,141 @@ CLK 引脚上的时钟脉冲信号是计数器的工作频率节拍，三个计�
 
 internal keyboard buffer full, ignoring scancode
 
+### bochs创建虚拟硬盘
+
+```shell
+[root@localhost a]# bximage
+========================================================================
+                                bximage
+  Disk Image Creation / Conversion / Resize and Commit Tool for Bochs
+         $Id: bximage.cc 13481 2018-03-30 21:04:04Z vruppert $
+========================================================================
+
+1. Create new floppy or hard disk image
+2. Convert hard disk image to other format (mode)
+3. Resize hard disk image
+4. Commit 'undoable' redolog to base image
+5. Disk image info
+
+0. Quit
+
+Please choose one [0] 1
+
+Create image
+
+Do you want to create a floppy disk image or a hard disk image?
+Please type hd or fd. [hd] hd
+
+What kind of image should I create?
+Please type flat, sparse, growing, vpc or vmware4. [flat]
+
+Choose the size of hard disk sectors.
+Please type 512, 1024 or 4096. [512]
+
+Enter the hard disk size in megabytes, between 10 and 8257535
+[10] 80
+
+What should be the name of the image?
+[c.img] 80m.img
+
+Creating hard disk image '80m.img' with CHS=162/16/63 (sector size = 512)
+
+The following line should appear in your bochsrc:
+  ata0-master: type=disk, path="80m.img", mode=flat
+```
+
+
+
+## 硬盘分区
+
+子扩展分区是在总扩展分区中创建的，子扩展分区的偏移扇区理应以总扩展分区的绝对扇区 LBA 地址为基准，因此，＂子扩展分区的绝对扇区 LBA 地址＝总扩展分区绝对扇区 LBA 地址＋子扩展分区的偏移扇区”。
+
+逻辑分区是在子扩展分区中创建的，逻辑分区的偏移扇区理应以子扩展分区的绝对扇区 LBA 地址为基准，因此，“逻辑分区的绝对扇区 LBA 地址＝子扩展分区绝对扇区 LBA 地址＋逻辑分区偏移扇区飞这里的子扩展分区就是当前子扩展分区。
+
+
+
+
+
+
+
+## 资源
+
+《计算机系统要素》官方网站和书中工具下载地址
+
+https://www.nand2tetris.org/software
+
+谭光志说他一个月就做完了这本书中的所有试验（操作系统内核、编译器），我花了不止一个月还没有弄懂，我学习能力太差了吗？
+
+### 工具--bochs
+
+下载地址：
+
+https://sourceforge.net/projects/bochs/files/bochs/2.6.11/
+
+Bochs User Manual
+
+http://bochs.sourceforge.net/cgi-bin/topper.pl?name=New+Bochs+Documentation&url=http://bochs.sourceforge.net/doc/docbook/user/index.html
+
+Bochs 官网
+
+http://bochs.sourceforge.net/getcurrent.html
+
+### bochs和gdb调试C语言
+
+#### 安装bocsh
+
+```shell
+./configure --prefix=/home/cg/tools/bochs-2.6.11 --enable-plugins   --enable-x86-64   --enable-cpp  --enable-disasm   --enable-gdb-stub --enable-x86-debugger --enable-e1000 
+make
+make install
+```
+
+
+
+### shell 方法
+
+
+
+#### 错误
+
+1. 
+
+```shell
+perl: warning: Setting locale failed.
+perl: warning: Please check that your locale settings:
+	LANGUAGE = (unset),
+	LC_ALL = (unset),
+	LANG = "zh_CN.UTF-8"
+    are supported and installed on your system.
+perl: warning: Falling back to the standard locale ("C").
+```
+
+解决：
+
+```shell
+vi ~/.bashrc
+export LANGUAGE="en_US.UTF-8"
+export LANG=en_US:zh_CN.UTF-8 
+export LC_ALL=C
+source ~/.bashrc
+```
+
+
+
+```
+========================================================================
+00000000000i[      ] BXSHARE not set. using compile time default '/home/cg/tools/bochs-2.6.11/share/bochs'
+00000000000i[      ] reading configuration from bochsrc
+00000000000p[      ] >>PANIC<	< bochsrc:34: gdbstub directive malformed.
+00000000000e[SIM   ] notify called, but no bxevent_callback function is registered
+00000000000e[SIM   ] notify called, but no bxevent_callback function is registered
+========================================================================
+Bochs is exiting with the following message:
+[      ] bochsrc:34: gdbstub directive malformed.
+========================================================================
+00000000000i[SIM   ] quit_sim called with exit code 1
+```
+
 
 
 

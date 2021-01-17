@@ -236,7 +236,7 @@ make
 
       9. 00 10 00 00，p_align，本段对齐方式。
 
-      10. 上面第对第一个段的分析，刚好32个字节，即0x20个字节。第一行的后12个字节 + 第二行的16个字节 + 第三行的前4个字节 = 32个字节。
+      10. 上面是对第一个段的分析，刚好32个字节，即0x20个字节。第一行的后12个字节 + 第二行的16个字节 + 第三行的前4个字节 = 32个字节。
 
 ### 实例分析
 
@@ -522,5 +522,495 @@ objdump -d 看目标文件汇编代码
 
 ## 理解C语言的一些语法
 
+ jmpf 0xf000:e05b          ; ea5be000f0
 
+rsi: 00000000_200e2305
+
+es:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+cs:0x0008, dh=0x00cf9b00, dl=0x0000ffff, valid=1
+	Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+ss:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=31
+
+
+
+================
+
+rax: 00000000_00060000
+rbx: 00000000_00000400
+rcx: 00000000_00005f2c
+rdx: 00000000_00000000
+rsp: 00000000_000916f9
+rbp: 00000000_00091705
+rsi: 00000000_00060000
+rdi: 00000000_00030000
+r8 : 00000000_00000000
+r9 : 00000000_00000000
+r10: 00000000_00000000
+r11: 00000000_00000000
+r12: 00000000_00000000
+r13: 00000000_00000000
+r14: 00000000_00000000
+r15: 00000000_00000000
+rip: 00000000_00090482
+
+
+
+<bochs:3> sreg
+es:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+cs:0x0008, dh=0x00cf9b00, dl=0x0000ffff, valid=1
+	Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+ss:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+ds:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+fs:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+gs:0x001b, dh=0x0000f30b, dl=0x8000ffff, valid=7
+	Data segment, base=0x000b8000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x000000000009013d, limit=0x1f
+idtr:base=0x0000000000000000, limit=0x3ff
+
+============
+
+<bochs:2> r
+CPU0:
+rax: 00000000_534d6000
+rbx: 00000000_00000000
+rcx: 00000000_0000002e
+rdx: 00000000_534d000c
+rsp: 00000000_000000fe
+rbp: 00000000_0000029e
+rsi: 00000000_000e029d
+rdi: 00000000_0000007a
+r8 : 00000000_00000000
+r9 : 00000000_00000000
+r10: 00000000_00000000
+r11: 00000000_00000000
+r12: 00000000_00000000
+r13: 00000000_00000000
+r14: 00000000_00000000
+r15: 00000000_00000000
+rip: 00000000_00000233
+
+rax: 00000000_00060000
+rbx: 00000000_00000400
+rcx: 00000000_00005f2c
+rdx: 00000000_00000000
+rsp: 00000000_00091719
+rbp: 00000000_00091725
+rsi: 00000000_00060000
+rdi: 00000000_00030000
+r8 : 00000000_00000000
+r9 : 00000000_00000000
+r10: 00000000_00000000
+r11: 00000000_00000000
+r12: 00000000_00000000
+r13: 00000000_00000000
+r14: 00000000_00000000
+r15: 00000000_00000000
+rip: 00000000_000904a2
+
+<bochs:9> sreg
+es:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+cs:0x0008, dh=0x00cf9b00, dl=0x0000ffff, valid=1
+	Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+ss:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+ds:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+fs:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+gs:0x001b, dh=0x0000f30b, dl=0x8000ffff, valid=7
+	Data segment, base=0x000b8000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x000000000009013d, limit=0x1f
+idtr:base=0x0000000000000000, limit=0x3ff
+
+xp /1wx 00091725
+
+xp /1wx  0x0009172D
+
+xp /1wx 0x00091731
+
+xp /1wx 0x00091735
+
+<bochs:14> xp /1wx  0x0009172D
+[bochs]:
+0x000000000009172d <bogus+       0>:	0x00030000
+<bochs:17> xp /1wx 0x00091731
+[bochs]:
+0x0000000000091731 <bogus+       0>:	0x00060000
+<bochs:18> xp /1wx 0x00091735
+[bochs]:
+0x0000000000091735 <bogus+       0>:	0x00005f2c
+
+<bochs:6> xp /1wx  0x0009172D
+[bochs]:
+0x000000000009172d <bogus+       0>:	0x054b4b83
+<bochs:7> xp /1wx 0x00091731
+[bochs]:
+0x0000000000091731 <bogus+       0>:	0x200e2305
+<bochs:8> xp /1wx 0x00091735
+[bochs]:
+0x0000000000091735 <bogus+       0>:	0x02040200
+
+
+
+========
+
+<bochs:2> reg
+CPU0:
+rax: 00000000_534d6000
+rbx: 00000000_00000000
+rcx: 00000000_0000002e
+rdx: 00000000_534d000c
+rsp: 00000000_000000fe
+rbp: 00000000_0000029e
+rsi: 00000000_000e029d
+rdi: 00000000_0000007a
+r8 : 00000000_00000000
+r9 : 00000000_00000000
+r10: 00000000_00000000
+r11: 00000000_00000000
+r12: 00000000_00000000
+r13: 00000000_00000000
+r14: 00000000_00000000
+r15: 00000000_00000000
+rip: 00000000_00000233
+eflags 0x00000006: id vip vif ac v
+
+<bochs:3> sreg
+es:0x6000, dh=0x00009306, dl=0x0000ffff, valid=3
+	Data segment, base=0x00060000, limit=0x0000ffff, Read/Write, Accessed
+cs:0x9000, dh=0x00009309, dl=0x0000ffff, valid=1
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+ss:0x9000, dh=0x00009309, dl=0x0000ffff, valid=7
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+ds:0x9000, dh=0x00009309, dl=0x0000ffff, valid=7
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+fs:0x0000, dh=0x00009300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+gs:0x0000, dh=0x00009300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x00000000000f9af7, limit=0x30
+idtr:base=0x0000000000000000, limit=0x3ff
+
+<bochs:6> xp /1wx  0x0009172D
+[bochs]:
+0x000000000009172d <bogus+       0>:	0x054b4b83
+<bochs:7> xp /1wx 0x00091731
+[bochs]:
+0x0000000000091731 <bogus+       0>:	0x200e2305
+<bochs:8> xp /1wx 0x00091735
+[bochs]:
+0x0000000000091735 <bogus+       0>:	0x02040200
+
+rsp: 00000000_0009172d
+
+xp  /1wx 0x0009172d
+
+xp  /1wx 0x00091731
+
+xp  /1wx 0x00091735
+
+<bochs:10> xp  /1wx 0x0009172d
+[bochs]:
+0x000000000009172d <bogus+       0>:	0x054b4b83
+<bochs:11> xp  /1wx 0x00091731
+[bochs]:
+0x0000000000091731 <bogus+       0>:	0x200e2305
+
+<bochs:12> xp  /1wx 0x00091735
+[bochs]:
+0x0000000000091735 <bogus+       0>:	0x02040200
+
+-------------------------------------------
+
+<bochs:5> xp  /1wx 0x0009172d
+[bochs]:
+0x000000000009172d <bogus+       0>:	0x00030000
+<bochs:6> xp  /1wx 0x00091731
+[bochs]:
+0x0000000000091731 <bogus+       0>:	0x00060000
+<bochs:7> xp  /1wx 0x00091735
+[bochs]:
+0x0000000000091735 <bogus+       0>:	0x00005f2c
+
+ interrupt(): gate descriptor is not valid sys seg (vector=0x0e)
+00045883472e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x08)
+00045883472i[CPU0  ] CPU is in protected mode (active)
+00045883472i[CPU0  ] CS.mode = 32 bit
+00045883472i[CPU0  ] SS.mode = 32 bit
+00045883472i[CPU0  ] EFER   = 0x00000000
+00045883472i[CPU0  ] | EAX=200e2305  EBX=00000400  ECX=02040200  EDX=00000000
+00045883472i[CPU0  ] | ESP=00091719  EBP=00091725  ESI=200e2305  EDI=054b4b83
+00045883472i[CPU0  ] | IOPL=0 id vip vif ac vm RF nt of df if tf sf zf af PF cf
+00045883472i[CPU0  ] | SEG sltr(index|ti|rpl)     base    limit G D
+00045883472i[CPU0  ] |  CS:0008( 0001| 0|  0) 00000000 ffffffff 1 1
+00045883472i[CPU0  ] |  DS:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+00045883472i[CPU0  ] |  SS:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+00045883472i[CPU0  ] |  ES:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+00045883472i[CPU0  ] |  FS:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+00045883472i[CPU0  ] |  GS:001b( 0003| 0|  3) 000b8000 0000ffff 0 0
+00045883472i[CPU0  ] | EIP=000904a2 (000904a2)
+00045883472i[CPU0  ] | CR0=0xe0000011 CR2=0x200e2305
+00045883472i[CPU0  ] | CR3=0x00200000 CR4=0x00000000
+(0).[45883472] [0x0000000904a2] 0008:00000000000904a2 (unk. ctxt): mov al, byte ptr ds:[esi] ; 3e8a06
+00045883472e[CPU0  ] exception(): 3rd (13) exception with no resolution, shutdown status is 00h, resetting
+00045883472i[SYS   ] bx_pc_system_c::Reset(HARDWARE) called
+00045883472i[CPU0  ] cpu hardware reset
+00045883472i[APIC0 ] allocate APIC id=0 (MMIO enabled) to 0x0000fee00000
+00045883472i[CPU0  ] CPU[0] is the bootstrap processor
+
+xp /1wx 0x00063806
+
+xp /1wx 0x0006380A          ;		0x20082305
+
+### 从boot读取软盘扇区中的汇编
+
+```assembly
+;NASM 汇编
+;nasm this.asm -o hello_os
+org 07c00h
+    mov ax, cs
+    mov ds, ax
+call welcome_words
+call load_os
+jmp os
+welcome_words:
+	mov ax,boot_message
+	mov bp,ax                             ;bp存储需要显示的字符串的起始地址
+	mov cx,boot_message_length            ;cx存储要显示的字符串的长度
+	mov ax,01301h                         ;ah=13h,是int 10h中断的参数之一,al=01h,标识输出方式
+	mov bx,000ah                          ;bh为页码,bl为颜色
+	mov dx,0d00h                          ;dx为显示位置坐标,0d行,0列
+	int 10h
+	ret
+load_os:
+	mov ah,02h                            ;读磁盘扇区
+	mov al,01h                            ;读取1个扇区
+	mov ch,00h                            ;起始磁道
+	mov cl,02h                            ;起始扇区
+	mov dh,00h                            ;磁头号
+	mov dl,00h                            ;驱动器号
+	mov bx,os                             ;存储缓冲区
+	int 13h
+	ret
+boot_message:
+	db "[Boot]modu os"
+	db 0dh,0ah                            ;换行
+	db "[Boot]loading..."
+boot_message_length equ $-boot_message    ;计算字符串长度
+times 510-($-$$) db 0                     ;填充至510byte
+dw 0xaa55                                 ;引导扇区标识,至此文件大小为512byte
+
+os:
+	call os_say_hello
+	jmp $
+os_say_hello:
+	mov ax,os_message
+	mov bp,ax
+	mov cx,os_message_length
+	mov ax,01301h
+	mov bx,000eh
+	mov dx,1000h
+	int 10h
+	ret
+os_message:
+	db "[OS]os loaded"
+	db 0dh,0ah
+	db "[OS]happy using"
+os_message_length equ $-os_message
+times 1022-($-$$) db 0
+```
+
+
+
+没能力用bochs运行它。价值在于，读取软盘。
+
+#### 从磁盘(扇区2到18)上读取数据到内存中
+
+## 下面代码读取柱面:0,磁头:0,扇区从2到18的数据到内存 0x8200~0xa3ff处
+
+- 需要明白以下几点:
+
+  - 给定柱面,磁头,一个扇形区域是512字节,对应的物理可以理解为512个灯泡组(一个灯泡组有8个小灯泡)
+
+  - 确定读取到内存中的位置
+
+    - 为什么是0x8200:因为0x8000~0x81ff这512个字节要留给启动区.
+    - 为什么是0x8000以后,因为这一段内存区域,很少有人使用,故读取到这段内存上出错的机率低
+
+  - CH(计数寄存器的高位)用于存储柱面信息
+
+  - DH(数据寄存器的高位)用于存储磁头信息
+
+  - CL(计数寄存器的低位)存储扇区
+
+  - SI(源变址寄存器)用于存储读取磁盘失败的次数
+
+  - 根据BIOS提供的信息：
+
+    - AH = 0x02 ; 读入磁盘
+    - AL = 1 ; 一次读取1个扇区
+
+  - 系统复位: 复位软盘状态,再读一次
+
+    ```
+    MOV		AH,0x0820
+    MOV		DL,0x00
+    INT			0x13
+    123
+    ```
+
+  - SI大于5时,执行error代码段
+
+    - JAE(Jump if above or equal):大于等于
+
+    ```
+    CMP		SI,5
+    JAE		error
+    12
+    ```
+
+  - JNC(Jump if not carry):如果没有出错的话跳到后面的代码段
+
+  - next代码段:用于读取下一个磁盘扇形区到内存中
+
+    - 一个扇形区域是512B,对应的段地址(es)偏移为0x0020,故使用AX给es加0x0020
+
+
+
+```
+; haribote-ipl
+; TAB=4
+
+		ORG		0x7c00			; 程序从哪里装入
+
+; 以下是对标准FAT12格式软盘的描述
+
+		JMP		entry
+		DB		0x90
+		DB		"HARIBOTE"		; 可以自由书写引导扇形区的名称 (8字节)
+		DW		512				; 1扇区的大小 (必须做成512)
+		DB 		1 				; 集群大小 (必须设置在一个扇区)
+		DW		1				; FAT从哪里开始 (一般从第一个部分开始)
+		DB		2				; FAT的个数 (必须是2)
+		DW		224				; 根目录区域的大小 (一般为224条目)
+		DW 		2880			; 这个驱动器的大小 (必须是2880扇区)
+		DB		0xf0			; 媒体类型 (必须是0xf0)
+		DW		9				; FAT区域的长度 (必须设置为9个扇区)
+		DW		18				; 1卡车有几个扇区 (必须是18)
+		DW		2				; 头数 (必须为2)
+		DD		0				; 因为不使用分区, 这里一定0
+		DD 		2880			; 再写一次这个驱动器的大小
+		DB		0,0,0x29		; 预先设置值
+		DD		0xffffffff		; 音量序列号
+		DB		"HARIBOTEOS "	; 磁盘名称 (11字节)
+		DB		"FAT12   "		; 格式名称 (8字节)
+		RESB	18				; 暂且空开18字节
+
+; 程序主体
+
+entry:
+		MOV		AX,0			; 寄存器初始化
+		MOV 	SS,AX
+		MOV		SP,0x7c00
+		MOV		DS,AX
+
+; 读磁盘
+
+		MOV		AX,0x0820
+		MOV		ES,AX
+		MOV		CH,0			; 柱面0
+		MOV		DH,0			; 磁头0 (正面)
+		MOV 	CL,2			; 扇区2
+readloop:						; 清零失败寄存器
+		MOV 	SI,0			; 记录失败次数的寄存器
+
+; 重新尝试
+retry:
+		MOV 	AH,0x02			; AH=0x02 : 读入磁盘(柱面0,磁头0,扇区2)
+		MOV 	AL,1			; 1个扇区
+		MOV 	BX,0
+		MOV		DL,0x00			; A驱动器
+		INT		0X13			; 调用磁盘BIOS	
+		JNC		next			; 没出错的话跳转到next
+		ADD 	SI,1			; 出错了,SI加1
+		CMP		SI,5			; 比较SI与5
+		JAE		error			; SI >=5时, 跳转到error
+		; 复位软盘状态
+		MOV		AH,0x00
+		MOV		DL,0x00			; A驱动器
+		INT		0x13			; 重置驱动器
+		JMP 	entry
+	
+; 读取下一个扇区
+; CL:扇区号, ES:读入的地址
+next:
+		; 把内存地址后移0x200
+		MOV		AX,ES			
+		ADD		AX,0x0020
+		MOV 	ES,AX			; ES无法直接加 0x020
+		ADD		CL,1			; 往CL里加1
+		
+		; 比较CL与18,如果小于18则跳转到readloop
+		CMP		CL,18			
+		JBE		readloop
+
+
+fin:	
+		HLT						; 让CPU停止, 等待指令
+		JMP		fin				; 无限循环
+		
+error:	
+		MOV		SI,msg
+putloop:
+		MOV		AL,[SI]
+		ADD		SI,1			; 给SI加1
+		CMP		AL,0
+		
+		JE		fin
+		MOV		AH,0x0e			; 显示一个文字
+		MOV		BX,15			; 指定字符颜色
+		INT		0x10			; 调用显卡BIOS
+		JMP		putloop
+msg:
+		DB		0x0a, 0x0a		; 换行2次
+		DB		"load error"	;
+		DB		0x0a			; 换行
+		DB		0
+		
+		RESB	0x7dfe-$		; 用0x00将代码不全至 0x7dfe-$
+		
+		DB		0x55, 0xaa
+```
+
+
+
+````
+00022651756p[BIOS  ] >>PANIC<< set_diskette_current_cyl(): drive > 1
+00022653071i[CPU0  ] WARNING: HLT instruction with IF=0!
+````
+
+xp /1wx 0x9000:0x010a
+
+## 解析硬盘参数
+
+````
+(gdb) p hdbuf
+$2 = "@\000\242\000\000\000\020\000\000~\000\002?\000\000\000\000\000\000\000XBDH0010 1  @\000\242\000\000\000\020\000\000~\000\002?\000\000\000\000\000\000\000XBDH0010 1  43", ' ' <repeats 28 times>, "\020\000\001\000\000\003\000\000\000\002\000\002\a\000\242\000\020\000?\000\340}\002\000\000\000\340}\002\000\000\000\a\000\000\000x\000x\000x\000x", '\000' <repeats 23 times>, "~\000\000\000\000@\000t\000@\000@\000t\000@?\000\000\000\000\000\000\000\000\000\001`", '\000' <repeats 12 times>...
+````
+
+
+
+怎么解析这种数据啊？
 

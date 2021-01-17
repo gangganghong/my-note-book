@@ -24,6 +24,23 @@ bochs--can not connect to X server 问题
 
 解决：执行 startx，然后切换到非root用户。只能在虚拟机上运行，在连接到虚拟机的命令行工具上无效。
 
+### bochs
+
+#### 常用命令
+
+##### xp
+
+```shell
+# 查看内存地址为A的内存区域的数据，2是数量，w是数量单位字，x是显示数据的格式十六进制
+xp /2wt 0x0000000000090145
+xp /1wx 0x000000000009014D
+xp /1wx 0x0000000000090155
+xp /1wx 0x000000000009015D
+xp /1wx 0x00000000000306d8
+```
+
+
+
 ## 书本笔记
 
 ### 进程restart
@@ -95,7 +112,358 @@ restart_reenter:
 
 ![image-20201231163827164](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20201231163827164.png)
 
+
+
+### 硬盘分区表
+
+#### 分区表结构表
+
+![image-20210117175244071](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20210117175244071.png)
+
+偏移单位是字节，不是字。我根据分区表结构的代码看出来的，`u8 boot_ind` 、 u8 start_head;` 等。
+
+```c
+struct part_ent {
+	u8 boot_ind;		/**
+				 * boot indicator
+				 *   Bit 7 is the active partition flag,
+				 *   bits 6-0 are zero (when not zero this
+				 *   byte is also the drive number of the
+				 *   drive to boot so the active partition
+				 *   is always found on drive 80H, the first
+				 *   hard disk).
+				 */
+
+	u8 start_head;		/**
+				 * Starting Head
+				 */
+  // 其他成员结构
+} PARTITION_ENTRY;
+```
+
+
+
 ### 硬盘
+
+### 遍历硬盘分区
+
+用到了两个获取硬盘信息的命令
+
+1. `0x20`
+
+```c
+/*****************************************************************************
+ *                                get_part_table
+ *****************************************************************************/
+/**
+ * <Ring 1> Get a partition table of a drive.
+ * 
+ * @param drive   Drive nr (0 for the 1st disk, 1 for the 2nd, ...)n
+ * @param sect_nr The sector at which the partition table is located.
+ * @param entry   Ptr to part_ent struct.
+ *****************************************************************************/
+PRIVATE void get_part_table(int drive, int sect_nr, struct part_ent * entry)
+{
+	struct hd_cmd cmd;
+	cmd.features	= 0;
+	cmd.count	= 1;
+	cmd.lba_low	= sect_nr & 0xFF;
+	cmd.lba_mid	= (sect_nr >>  8) & 0xFF;
+	cmd.lba_high	= (sect_nr >> 16) & 0xFF;
+	cmd.device	= MAKE_DEVICE_REG(1, /* LBA mode*/
+					  drive,
+					  (sect_nr >> 24) & 0xF);
+	cmd.command	= ATA_READ;
+	hd_cmd_out(&cmd);
+	interrupt_wait();
+
+	port_read(REG_DATA, hdbuf, SECTOR_SIZE);
+	memcpy(entry,
+	       hdbuf + PARTITION_TABLE_OFFSET,
+	       sizeof(struct part_ent) * NR_PART_PER_DRIVE);
+}
+
+
+/**
+ * @struct part_ent
+ * @brief  Partition Entry struct.
+ *
+ * <b>Master Boot Record (MBR):</b>
+ *   Located at offset 0x1BE in the 1st sector of a disk. MBR contains
+ *   four 16-byte partition entries. Should end with 55h & AAh.
+ *
+ * <b>partitions in MBR:</b>
+ *   A PC hard disk can contain either as many as four primary partitions,
+ *   or 1-3 primaries and a single extended partition. Each of these
+ *   partitions are described by a 16-byte entry in the Partition Table
+ *   which is located in the Master Boot Record.
+ *
+ * <b>extented partition:</b>
+ *   It is essentially a link list with many tricks. See
+ *   http://en.wikipedia.org/wiki/Extended_boot_record for details.
+ */
+struct part_ent {
+	u8 boot_ind;		/**
+				 * boot indicator
+				 *   Bit 7 is the active partition flag,
+				 *   bits 6-0 are zero (when not zero this
+				 *   byte is also the drive number of the
+				 *   drive to boot so the active partition
+				 *   is always found on drive 80H, the first
+				 *   hard disk).
+				 */
+
+	u8 start_head;		/**
+				 * Starting Head
+				 */
+
+	u8 start_sector;	/**
+				 * Starting Sector.
+				 *   Only bits 0-5 are used. Bits 6-7 are
+				 *   the upper two bits for the Starting
+				 *   Cylinder field.
+				 */
+
+	u8 start_cyl;		/**
+				 * Starting Cylinder.
+				 *   This field contains the lower 8 bits
+				 *   of the cylinder value. Starting cylinder
+				 *   is thus a 10-bit number, with a maximum
+				 *   value of 1023.
+				 */
+
+	u8 sys_id;		/**
+				 * System ID
+				 * e.g.
+				 *   01: FAT12
+				 *   81: MINIX
+				 *   83: Linux
+				 */
+
+	u8 end_head;		/**
+				 * Ending Head
+				 */
+
+	u8 end_sector;		/**
+				 * Ending Sector.
+				 *   Only bits 0-5 are used. Bits 6-7 are
+				 *   the upper two bits for the Ending
+				 *    Cylinder field.
+				 */
+
+	u8 end_cyl;		/**
+				 * Ending Cylinder.
+				 *   This field contains the lower 8 bits
+				 *   of the cylinder value. Ending cylinder
+				 *   is thus a 10-bit number, with a maximum
+				 *   value of 1023.
+				 */
+
+	u32 start_sect;	/**
+				 * starting sector counting from
+				 * 0 / Relative Sector. / start in LBA
+				 */
+
+	u32 nr_sects;		/**
+				 * nr of sectors in partition
+				 */
+
+} PARTITION_ENTRY;
+```
+
+
+
+突然发现C语言中的结构也挺好用的，比对象更好用。一堆数据，二进制数据，天然就是struct，只不过有分界线而已。这块数据是这个成员变量，那块数据是那个成员变量。
+
+看了几个二进制文件，对内存的有了很形象的认识。内存地址，不过就是在一块区域（与文件相似）的里的位置、坐标、偏移量，物理地址就是这块区域的物理地址加上偏移量。
+
+
+
+2. `0xEC`
+
+```c
+/*****************************************************************************
+ *                                hd_identify
+ *****************************************************************************/
+/**
+ * <Ring 1> Get the disk information.
+ * 
+ * @param drive  Drive Nr.
+ *****************************************************************************/
+PRIVATE void hd_identify(int drive)
+{
+	struct hd_cmd cmd;
+	cmd.device  = MAKE_DEVICE_REG(0, drive, 0);
+	cmd.command = ATA_IDENTIFY;
+	hd_cmd_out(&cmd);
+	interrupt_wait();
+	port_read(REG_DATA, hdbuf, SECTOR_SIZE);
+
+	print_identify_info((u16*)hdbuf);
+
+	u16* hdinfo = (u16*)hdbuf;
+
+	hd_info[drive].primary[0].base = 0;
+	/* Total Nr of User Addressable Sectors */
+	hd_info[drive].primary[0].size = ((int)hdinfo[61] << 16) + hdinfo[60];
+}
+```
+
+
+
+
+
+
+
+#### 硬盘参数
+
+![image-20210117161529911](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20210117161529911.png)
+
+
+
+![image-20210117161608879](/Users/cg/Documents/gitbook/my-note-book/zi-ji-xie-cao-zuo-xi-tong/image-20210117161608879.png)
+
+
+
+《一个操作系统的实现》，缺少许多细节，任何一个在作者看来小得不能再小的知识点，都能阻挡我四五个小时甚至更多。
+
+偏移量是字，不是字节。所以，序列号的偏移是10~19,有20个字符。
+
+还有一点，作者们都不提，那就是0xec命令返回的数据是小端法。
+
+```c
+PRIVATE void print_identify_info(u16* hdinfo)
+{
+	int i, k;
+	char s[64];
+
+	struct iden_info_ascii {
+		int idx;
+		int len;
+		char * desc;
+	} iinfo[] = {{10, 20, "HD SN"}, /* Serial number in ASCII */
+		     {27, 40, "HD Model"} /* Model number in ASCII */ };
+
+	for (k = 0; k < sizeof(iinfo)/sizeof(iinfo[0]); k++) {
+		char * p = (char*)&hdinfo[iinfo[k].idx];
+		for (i = 0; i < iinfo[k].len/2; i++) {
+			// 打印的字节顺序和读取到的硬盘参数字节顺序相反，以字节为单位。
+			s[i*2+1] = *p++;
+			s[i*2] = *p++;
+		}
+		s[i*2] = 0;
+		printl("%s: %s\n", iinfo[k].desc, s);
+	}
+
+	int capabilities = hdinfo[49];
+  0x0200，第9位是0，当capabilities的第9位是1时，支持LBA。
+	printl("LBA supported: %s\n",
+	       (capabilities & 0x0200) ? "Yes" : "No");
+
+	int cmd_set_supported = hdinfo[83];
+  0x400，第10位是0，当cmd_set_supported的第10位是1时，支持LBA48。
+	printl("LBA48 supported: %s\n",
+	       (cmd_set_supported & 0x0400) ? "Yes" : "No");
+
+	int sectors = ((int)hdinfo[61] << 16) + hdinfo[60];
+  // 1000000 是十进制还是十六进制？十进制。这不是按照1mb = 1024 * 1024 byte计算的。
+	printl("HD size: %dMB\n", sectors * 512 / 1000000);
+}
+```
+
+小端法：低位数据在右边，高位数据在左边。例如，`1578`，用小端法表示是，`7815` 。
+
+切分单位，不固定，可能是字节，也可能是字。例如，`int sectors = ((int)hdinfo[61] << 16) + hdinfo[60];`，切分单位是字。
+
+这段代码，隐藏着“小端法”和“单位是字”两个条件。
+
+这难吗？若硬盘返回数据是我设计的，我一定会知道这样读取并处理数据。可我不知道啊。
+
+还剩下一个问题：C语言字符串复制。
+
+不是我复制字符串的方法有问题，而是数据有问题，而我没有发现。偏移量从20开始，而不是从10开始。若从10开始，复制10位，都是空白的。这个结果，让我以为代码有问题。
+
+```c
+#include <stdio.h>
+
+int main(int argc, char *argv[])
+{
+        int i, k;
+        char s[64];
+
+        struct iden_info_ascii {
+                int idx;
+                int len;
+                char * desc;
+        } iinfo[] = {{10, 20, "HD SN"}, /* Serial number in ASCII */
+                     {27, 40, "HD Model"} /* Model number in ASCII */ };
+
+        char *p2 = "@\000\242\000\000\000\020\000\000~\000\002?\000\000\000\000\000\000\000XBDH0010 1  @\000\242\000\000\000\020\000\000~\000\002?\000\000\000\000\000\000\000XBDH0010 1  43";
+        char *p = (char *)&p2[20];
+        for (i = 0; i < 10; i++) {
+                        //printf("p = %c\n", *p);
+                        // printf("s[i*2+1] = %c\n", *p);
+                        s[2 *i] = *p++;
+                        // printf("s[i*2] = %c\n", *p);
+                        s[2 * i+1] = *p++;
+                }
+                printf("\n");
+                // s[i*2]s[i*2] = 0; = 0;
+                // printf("%s\n",  s);
+
+        s[i] = 0;
+        printf("%s\n",  s);
+        return 0;
+}
+```
+
+
+
+这段代码的价值：
+
+1. 解析硬盘参数。
+
+   1. 单位是字。
+
+   2. 字节顺序转换。只需修改下面两句的顺序：
+
+      ```c
+       s[2 *i] = *p++;
+       s[2 * i+1] = *p++;
+      ```
+
+      
+
+2. `char *p = (char *)&p2[20];` 。不理解这句。
+
+3. `*p++`，先获取p中存储的内存中的内存地址，然后再将内存地址增加一个单位。
+
+   1. 
+
+   ```c
+   #include <stdio.h>
+   
+   int main(void)
+   {
+           int a[5]={1,2,3,4,5};
+           int *p = a;
+           printf("*p++ = %d\n", *p++);
+           printf("*p++2 = %d\n", *p++);
+           return 0;
+   }
+   ```
+
+   2. 执行结果是：
+
+      ```shell
+      chugangdeMacBook-Pro:my-note-book cg$ ./pointer
+      *p++ = 1
+      *p++2 = 2
+      ```
+
+
+
+
 
 #### 机械硬盘
 
