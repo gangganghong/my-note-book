@@ -63,3 +63,37 @@ b newCode
 
 很不错的资料，有空整理学习一下
 
+## 陌生写法
+
+### 多个变量赋值
+
+```c
+#include <stdio.h>
+
+int main(void)
+{
+        int a,b,c,d;
+  			// 这几个变量的缩进不影响效果
+        a =
+                b =
+                c =
+                d = 5;
+        printf("a = %d, b = %d, c = %d, d = %d\n", a, b, c, d);
+        return 0;
+}
+```
+
+
+
+输出结果：
+
+```shell
+[root@localhost e]# gcc -o test test.c
+[root@localhost e]# ./test
+a = 5, b = 5, c = 5, d = 5
+```
+
+
+
+
+
