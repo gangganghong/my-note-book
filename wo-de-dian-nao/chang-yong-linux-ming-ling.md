@@ -194,3 +194,10 @@ dd if=abc.gz.bak3 of=abc.gz bs=1k seek=80000
 
 理解说明:skip=xxx是在备份时对if 后面的部分也就是原文件跳过多少块再开始备份;seek=xxx则是在备份时对of 后面的部分也就是目标文件跳过多少块再开始写。
 
+### GDB
+
+GDB删除指定的断点
+
+delete [breakpoints] [rang...]
+
+ breakpoints为断点号 不指定断点号则表明删除所有的断点 range表示断点号的范围
