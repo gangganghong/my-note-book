@@ -75,6 +75,93 @@ BPB头等数据不需要在软盘的最开始位置吗？
 
 ## 加载loader入内存
 
+### 从软盘中读取loader
+
+#### 查找loader
+
+软盘中有多个文件，怎么从软盘中读取loader呢？
+
+首先，要找到软盘中loader的数据元信息，即它的第一个扇区的位置信息，所有扇区的位置信息。
+
+这一切，可以从FAT12文件系统的根目录区获取。
+
+根目录区的第一个扇区是软盘的第19个扇区（引导扇区 + 两个FAT占用的18个扇区）。根目录中有很多个根目录项，数量和软盘中的文件数量相同，一个根目录项对应一个文件。每个根目录项占用32个字节，查找文件会使用根目录项中的“文件名”和”第一个簇号“两个成员变量（二进制数据中没有这个概念，这里借用C语言中的struct的成员变量概念）。“文件名”在根目录项的初始位置，即偏移量是0。“第一个簇号”，是指文件在数据区的第一个簇的簇号，在根目录项中的偏移量是 `0x1A`，即26个字节。由于一个簇只有一个扇区，所以，“第一个簇号”，也就是“第一个扇区”。
+
+从根目录中获取文件名后，逐个字符与字符串”LOADER BIN"(这是loader在软盘中的名称)对比，若完全匹配，说明loader在软盘中存在，进入读取loader的流程。若不完全匹配，说明当前根目录条目不是loader的根目录条目，继续读取下一个根目录条目，重复上面的流程。
+
+显然，这是一个遍历根目录的过程。遍历终止的条件是“第一个扇区”等于 `0xFFFF`。若“第一个扇区”是`0xffff'，表示这是文件的最后一个簇，（为何如此？）不必读取`0xffff`这个扇区的数据。
+
+怎么遍历根目录项目？
+
+使用BIOS中断`int 15h`。它的使用方法，类似C语言中的函数，提供参数，返回结果。这个中断的使用流程如下：
+
+1. 重设软驱。
+2. 读取数据。
+
+必须严格按照这个先后顺序来执行。两个流程都使用`int 15h`，只不过参数不同。
+
+重设软驱需要的参数是：（忘记了）？
+
+读取数据需要的参数是：柱面号、磁头号、在软盘中的扇区号（需要将参数放入规定的寄存器，忘记了）；返回数据在es:bx指令的内存区域。
+
+读取第一个根目录项的参数是：
+
+1. 柱面号：？
+2. 磁头号：？
+3. 扇区号：1（引导扇区）+18（两个FAT) = 19。
+
+柱面号和磁头号需要计算，方法是：
+
+1. 扇区号 / 一个磁道包含的扇区数 = X，余数是Y。
+2. 柱面号 = X >> 1。
+3. 磁头号 = X & 1。
+4. 初始扇区号 = Y + 1。
+
+初始扇区号，并不是在软盘中的累加扇区号，而是该扇区在当前柱面、当前磁头的初始扇区号。为啥要加1？因为CHS规则下，A柱面A磁头下的扇区号的初始值是1，所以，最终的扇区号应该是扇区偏移量 + 1。
+
+注意，初始扇区号中的 + 1 又让我困扰了不少时间。
+
+> CHS(0,0,1)（0柱面-0磁头-1扇区）就是硬盘的逻辑（LBA）第0扇区，MBR就储存在这个扇区上。
+
+文件的第一簇的数据，通过它对应的根目录项中的“第一簇”可以读取到。剩余的数据，需要根据“第一簇”来读取FAT项来获取。
+
+“第一簇”既是文件在文件区的第一块数据的簇号，也是它在FAT1中的FAT项的编号，例如，若“第一簇”是2，那么，在FAT中对应的FAT项的编号是2。文件由多少个簇，就有多少个对应的FAT项。簇和FAT项一一对应。
+
+查找文件所有簇号的流程是：
+
+1. 从文件对应的根目录项中获取文件的第一个簇的编号N，在FAT中找到编号为N的FAT项。
+2. FAT项的值是文件的下一个簇的簇号，也是这个簇对应的FAT项的编号。它就是一个单链表。第一个簇号是头结点。
+3. FAT项的值有三种特殊值：
+   1. 值是0XFFFF，表示当前FAT项是最后一个。
+   2. 大于某个值，坏簇。
+   3. ？（忘记了）
+
+#### GetFATEntry
+
+这个函数，参数是FAT项编号，返回值是FAT项的值。
+
+一个FAT项占用12字节，所以，它可能跨越两个扇区。为了完整获取每个FAT项，每次需要获取包含此FAT项的两个扇区。根据FAT项能计算出这个FAT项的字节偏移量是多少，进而计算出它的扇区偏移量，为读取软盘创造条件。
+
+难点是：检查FAT项的字节偏移量是不是整数个字节。
+
+如果是整数个字节，[es:ax]为起点的16字节的低12位，是结果。
+
+如果不是整数个字节，[es:ax]为起点的16字节的高12位，是结果。
+
+结果是文件的下一个簇在数据区的簇号。注意这个簇号是相对于数据区的簇号，在读取软盘时需转换为A柱面A磁头的扇区号。
+
+### 读取loader
+
+从文件对应的根目录项的“第一个簇”获取文件在数据区的第一簇数据，同时根据“第一簇”找到编号为“第一簇”的FAT项。这个FAT项的值是下一簇数据的簇号。
+
+已知文件的簇号，能计算出这个簇在软盘的扇区偏移量，进一步能计算出这个簇（扇区）在A柱面B磁头的扇区号。
+
+已知FAT项的编号，能计算出这个FAT项在FAT区域的字节偏移量，进而计算出FAT项在FAT区域的扇区偏移量，再进一步计算出FAT项在软盘的扇区偏移量，最终能计算出这个簇（扇区）在A柱面B磁头的扇区号。
+
+已知柱面号、磁头号、扇区号，就能使用BIOS中断`int 15h` 读取软盘数据。
+
+写的时候，仍需要想一想。若写作场景再严格一点（比如面试），我担心自己不能如此从容地写出来。
+
 ### 公式
 
 能使用的内存有多少？足够加载loader吗？
@@ -332,4 +419,338 @@ https://blog.csdn.net/robbie1314/article/details/5765117
 三、es:bx，总感觉不怎么理解。通过读取软盘，包含FAT项的两个扇区被读取到了[es:bx]为初始位置的内存区域。
 
 ​	1. bx会增加吗？
+
+## 向loader交出控制权
+
+把loader读取到内存后，使用一个跳转指令就能把控制权从boot交给loader。
+
+跳转指令需要内存地址，段 + 偏移量。这个内存地址，就是loader被读入到内存的位置。这个位置，在读取数据时，是可以自由设置的，不能覆盖内存中的其他数据。
+
+```assembly
+jmp BaseOfLoader:OffsetOfLoader
+```
+
+
+
+## 开始写代码
+
+代码仓库：https://github.com/gangganghong/pegasus-os.git
+
+代码地址：/home/cg/os/pegasus-os
+
+最终目的，是自己独立写一个简单的操作系统。迟迟不进入正题，什么时候才能完成这个任务？
+
+就在今日，真正开始写代码，不完成下面的功能不做其他的事情。
+
+需要完成哪些功能呢？
+
+1. 开发完boot。
+   1. 读取loader到内存中，并执行loader中的指令。
+2. 开发完简单的loader。
+   1. 打印一个字符。
+   2. 再打印出“hello,os"。
+
+### boot.asm
+
+#### 打印字符串
+
+内存初始地址：`org 700ch`。
+
+先不写全局描述符这些，只打印出一个字符串"hello,os!"。
+
+打印字符串，使用BIOS中断。哪个BIOS中断？不记得了。那么，面试时如何应对别人的询问？会用和记忆是两个不同的事情。要记住，去重复看就是了。
+
+使用`int 10h`中断。代码如下：
+
+```assembly
+mov ax, cs
+mov ds, ax
+mov es, ax
+; 上面三句非必须
+mov	ah,	13h	; 打印字符串必须使用13h
+mov al, 01h	; 使用0、2、3，字符串不能正常显示，花花绿绿
+; mov	bp,	BootMessage 错误写法。BootMessage不能直接赋值给bp
+mov	ax,	BootMessage
+mov bp, ax
+; mov	cx,	BootMessageLength 错误写法。BootMessageLength不能直接赋值给cx
+mov ax, BootMessageLength
+mov cx, ax
+mov dh,10	; 显示字符串的列坐标
+mov dl,10	; 显示字符串的行坐标
+int 10h
+
+BootMessage:	db	"Hello,OS World!"
+BootMessageLength	equ	$ - BootMessage
+```
+
+直接写显存，打印一个字符。代码是：
+
+```assembly
+mov ax,0B800h
+mov gs, ax
+mov al, 'L'
+mov ah, 0ch
+mov	[gs:((80*1+9)*2)], ax
+```
+
+写显存打印字符串，如何写代码？
+
+将字符串拆分为字符，每次向显存写入一个字符，用循环显示整个字符串。
+
+
+
+```assembly
+mov	ax, 0B800h
+mov gs,	ax
+
+mov ax, BootMessage
+mov es,	ax
+mov	si,	ax
+
+mov	di, 0
+mov bx, 0A0h
+mov ax, BootMessageLength
+mov	cx,	ax
+
+DISP_STR:
+	mov	al,	es:[si]
+	inc si
+	mov ah,	0Bh
+	mov gs:[di], ax
+	add di, 2
+	
+	loop DISP_STR
+
+BootMessage:	db	"Hello"
+BootMessageLength	equ	$ - BootMessage
+```
+
+上面的代码是错误的，不能正确打印字符串。
+
+下面的代码是正确的。
+
+```assembly
+; 显存从0B800h开始
+mov ax, 0B800h
+mov gs, ax
+; di 是字符在显存中的偏移量
+; (80 * row + column) * 2中，row控制字符的纵坐标，column控制字符的横坐标。
+; 若增加row，di的增量需是160。若增加column，di的增量需是2。不需要思考，一瞬间就能知道这些。非要问个为什么，我还得想一想。举例，归纳法吧。
+mov di, (80 * 5 + 0) * 2
+
+; 关键语句。让si指向BootMessage这个内存位置的初始区域。
+mov si, BootMessage
+mov ax, BootMessageLength
+mov cx, ax
+
+DISP_STR:
+	; 关键语句，将si指向的内存中的数据赋值给al。
+	; 与网上的demo不同，不是[es:si]等。因为，此处的es不明，我还没找到方法获取它。[si]使用默认段地址。
+	mov	al, [si]
+	; 内存地址加1,让si指向下一个字节。
+	inc si
+	mov ah, 0Bh
+	mov [gs:di], ax
+	add di, 2
+	
+	loop DISP_STR
+
+BootMessage:	db	"Hello"
+BootMessageLength equ $ - BootMessage
+```
+
+
+
+B8000H-BFFFFH的内存空间是显存地址, 32K大小, 向这个地址写入数据就可以打印到屏幕上了。
+
+boot有512字节，最后两个字节是魔数`0xaa55`。代码如下：
+
+```assembly
+times				510-($-$)						0
+dword				0xaa55。
+```
+
+呵呵，不记得，写不出来。
+
+魔数中的`a`是大写还是小写？大小写不敏感。
+
+#### 从软盘中读数据
+
+FAT12文件系统安装在软盘中还是安装在loader.bin文件中？
+
+安装在软盘中。
+
+怎么安装的？
+
+1. 用bximage生成虚拟软盘。
+2. 在boot.asm中写入FAT12的BPB头等信息。
+3. `nasm -o boot.bin boot.asm`
+4. 把boot.bin、loader.bin等写入软盘a.img中。写入工具会按照FAT12的格式要求写入数据。
+
+BPB头等信息，内容太多，我没记住，不打算记住，直接照抄。如此，我又担心，代码究竟是我写的还是照抄的？
+
+若我不用自己写，却对代码的了解如同我自己写过一样，那我就不自己写。
+
+FAT12头信息：
+
+```assembly
+; 下面是 FAT12 磁盘的头
+	BS_OEMName	DB 'ForrestY'	; OEM String, 必须 8 个字节
+	BPB_BytsPerSec	DW 512		; 每扇区字节数
+	BPB_SecPerClus	DB 1		; 每簇多少扇区
+	BPB_RsvdSecCnt	DW 1		; Boot 记录占用多少扇区
+	BPB_NumFATs	DB 2		; 共有多少 FAT 表
+	BPB_RootEntCnt	DW 224		; 根目录文件数最大值
+	BPB_TotSec16	DW 2880		; 逻辑扇区总数
+	BPB_Media	DB 0xF0		; 媒体描述符
+	BPB_FATSz16	DW 9		; 每FAT扇区数
+	BPB_SecPerTrk	DW 18		; 每磁道扇区数
+	BPB_NumHeads	DW 2		; 磁头数(面数)
+	BPB_HiddSec	DD 0		; 隐藏扇区数
+	BPB_TotSec32	DD 0		; wTotalSectorCount为0时这个值记录扇区数
+	BS_DrvNum	DB 0		; 中断 13 的驱动器号
+	BS_Reserved1	DB 0		; 未使用
+	BS_BootSig	DB 29h		; 扩展引导标记 (29h)
+	BS_VolID	DD 0		; 卷序列号
+	BS_VolLab	DB 'OrangeS0.02'; 卷标, 必须 11 个字节
+	BS_FileSysType	DB 'FAT12   '	; 文件系统类型, 必须 8个字节
+```
+
+
+
+这块头信息不能在文件的最开始位置，必需在下面代码的下面：
+
+```assembly
+jmp short LABEL_START		; Start to boot.
+nop				; 这个 nop 不可少
+```
+
+
+
+为何如此？原因不明。
+
+这是我实验的结果。当FAT12头信息在boot.asm的最开始位置时，a.img文件信息如下：
+
+```shell
+[root@localhost pegasus-os]# file a.img
+a.img: DOS/MBR boot sector
+```
+
+a.img软盘若成功安装了FAT12文件系统，它的文件信息应该是下面这样的：
+
+```shell
+[root@localhost pegasus-os]# file a.img
+a.img: DOS/MBR boot sector, code offset 0x3c+2, OEM-ID "ForrestY", root entries 224, sectors 2880 (volumes <=32 MB), sectors/FAT 9, sectors/track 18, serial number 0x0, label: "OrangeS0.02", FAT (12 bit)
+```
+
+##### ReadSector
+
+这个函数从软盘中读取若干个扇区。
+
+参数是：在软盘中的扇区号；要读取的扇区数量。
+
+返回值：从软盘中读取的数据。
+
+本函数内部使用BIOS中断调用`int 15h`。它需要的参数有：柱面号、磁头号、在特定柱面特定磁头的扇区号。这个扇区号的初始地址是1。这些参数都可以从在软盘中的扇区号计算得到。
+
+读取到的数据存储在[es:bx]指向的内存中。所以，要准备一块内存存储数据。或者说，这块内存是软盘中的数据在内存中的映像区域。
+
+用在软盘中的扇区号计算柱面号、磁头号、扇区号的方法如下：
+
+1. 扇区号 / 每个磁道包含的扇区的数量，商是 A，余数是 B。
+2. 柱面号 = A >> 1。本软盘中，只有两个磁头，即只有两个盘面。上下盘面一对编号相同的磁道组成一个柱面。
+3. 磁头号 = A & 1。
+4. 在本柱面本磁头的扇区号 = B + 1。在这里，扇区号的初始值是1，所以最终扇区号 = 偏移量 + 1。
+   1. 这种细节问题，其实比较让我烦恼。它就是规定而已。每次去纠结这种没啥价值的小问题，实在是浪费时间。
+   2. 很重要的细节。
+      1. 偏移，是在上面计算出来的柱面号、磁头号上的偏移，而不是其他的柱面号、磁头号的偏移。若是后者，读取数据指定柱面号、磁头号，有何意义？用例子来理解，也证明偏移是相对于上面计算出来的柱面号、磁头号的偏移。
+      2. 偏移量和编号的问题。
+      3. 用具体例子来理解吧。假设每个磁道包含2个扇区。
+         1. 扇区号是1。（有2个扇区）
+            1. 用公式计算。商是0，余数是1。柱面号是0，磁头号是0，扇区偏移量是1，扇区号是2。
+            2. 人工排列。扇区号为0的扇区是0柱面0磁头第1个扇区。扇区号为1的扇区是0柱面0磁头的第2个扇区。扇区号是2。
+         2. 扇区号是2。（有3个扇区，分别是编号0、编号1、编号2的扇区）
+            1. 公式。商是1，余数是0。柱面号0，磁头号1，扇区偏移量是0，扇区号1。
+            2. 人工。扇区号为0的扇区是0柱面0磁头第1个扇区。扇区号为1的扇区是0柱面0磁头的第2个扇区。扇区号为2的扇区是0柱面1磁头的第1个扇区。
+         3. 扇区号是3。（有4个扇区，分别是编号0、编号1、编号2、编号3的扇区）
+            1. 公式。商是1，余数是1。柱面号0，磁头号1，扇区偏移量是1，扇区号2。
+            2. 人工。扇区号为0的扇区是0柱面0磁头第1个扇区。扇区号为1的扇区是0柱面0磁头的第2个扇区。扇区号为2的扇区是0柱面1磁头的第1个扇区。扇区号为3的扇区是0柱面1磁头的第2个扇区。
+         4. 扇区号是4。（有4个扇区，分别是编号0、编号1、编号2、编号3、编号4的扇区）
+            1. 公式。商是2，余数是0。柱面号1，磁头号0，扇区偏移量是0，扇区号1。
+            2. 人工。扇区号为0的扇区是0柱面0磁头第1个扇区。扇区号为1的扇区是0柱面0磁头的第2个扇区。扇区号为2的扇区是0柱面1磁头的第1个扇区。扇区号为3的扇区是0柱面1磁头的第2个扇区。扇区号为4的扇区是1柱面0磁头的第1个扇区。
+      4. 理解这个公式的方法是不是不对啊？已经用这么多具体数据证明这个公式是正确的了，为何还感觉不赞同这个公式的正确性呢？我多次心算计算柱面磁头初始扇区，想找出一种不借助具体数据证明这个公式正确性的方法，没有找到。这个公式，没有多少价值。在上面耗费这么多时间，收益太小太小。要记住，不能再这样了。
+      5. 在此公式耗费了四五个小时。思考，也要遵照某些规则嘛。无理由、无依据地模拟计算过程，这算哪门子的思考啊？
+      6. 这个公式，计算柱面号、磁头号，都没有任何问题。问题只存在于计算在某柱面某磁头下的扇区号。搁置搁置！！！！！
+      7. 想起那两段长长的读取软盘数据的汇编代码，我就觉得难。太难写了。
+
+##### GetFATEntry
+
+
+
+
+
+#### git
+
+git 中提交代码时注释乱码问题
+
+```shell
+# 设置git 的界面编码：
+git config --global gui.encoding utf-8
+# 设置 commit log 提交时使用 utf-8 编码：
+git config --global i18n.commitencoding utf-8
+# 使得在 $ git log 时将 utf-8 编码转换成 gbk 编码。没用过。
+git config --global i18n.logoutputencoding gbk
+# 使得 git log 可以正常显示中文：
+export LESSCHARSET=utf-8
+```
+
+Your name and email address were configured automatically based
+on your username and hostname. Please check that they are accurate.
+You can suppress this message by setting them explicitly:
+
+    git config --global user.name "Your Name"
+    git config --global user.email you@example.com
+
+After doing this, you may fix the identity used for this commit with:
+
+    git commit --amend --reset-author
+
+
+
+#### vi/vim多行注释和取消注释
+
+多行注释：
+
+1. 进入命令行模式，按ctrl + v进入 visual block模式，然后按j, 或者k选中多行，把需要注释的行标记起来
+
+2. 按大写字母I，再插入注释符，例如//
+
+3. 按esc键就会全部注释了
+
+取消多行注释：
+
+1. 进入命令行模式，按ctrl + v进入 visual block模式，按字母l横向选中列的个数，例如 // 需要选中2列
+
+2. 按字母j，或者k选中注释符号
+
+3. 按d键就可全部取消注释
+
+### Makefile
+
+编译 boot.asm为boot.bin。把boot.bin写入软盘a.img。
+
+```makefile
+# 编译 boot.asm为boot.bin
+nasm -o boot.bin boot.asm
+# 把boot.bin写入软盘a.img
+dd if=boot.bin of=a.img count=1 conv=nottruc
+```
+
+
+
+### loader.asm
+
+
+
+
 
