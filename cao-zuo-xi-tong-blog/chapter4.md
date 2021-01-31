@@ -733,6 +733,25 @@ instruction has conflicting segment overrides
 
 
 
+```
+Bochs is exiting with the following message:
+[CPU0  ] prefetch: getHostMemAddr vetoed direct read, pAddr=0x0000000b3328
+```
+
+
+
+```
+ prefetch: EIP [00010000] > CS.limit [0000ffff]
+```
+
+
+
+```
+write_virtual_checks(): write beyond limit, r/w
+```
+
+
+
 ```shell
 <bochs:3> r
 CPU0:
@@ -782,9 +801,17 @@ rip: 00000000_00007cda
 
 
 
+```
+00014215970p[FLOPPY] >>PANIC<< io: norm r/w parms out of range: sec#0ah cyl#71h eot#0ah head#01h
+========================================================================
+Bochs is exiting with the following message:
+[FLOPPY] io: norm r/w parms out of range: sec#0ah cyl#71h eot#0ah head#01h
+========================================================================
+```
+
+
+
 ##### GetFATEntry
-
-
 
 
 
@@ -844,8 +871,6 @@ nasm -o boot.bin boot.asm
 # 把boot.bin写入软盘a.img
 dd if=boot.bin of=a.img count=1 conv=nottruc
 ```
-
-
 
 ### loader.asm
 
