@@ -79,6 +79,7 @@ LABEL_BEGIN:
 
 	; 初始化 16 位代码段描述符
 	mov	ax, cs
+	; 把ax的值赋值到eax中，无符号
 	movzx	eax, ax
 	shl	eax, 4
 	add	eax, LABEL_SEG_CODE16
@@ -187,37 +188,50 @@ LABEL_SEG_CODE32:
 	xor	edi, edi
 	mov	esi, OffsetPMMessage	; 源数据偏移
 	mov	edi, (80 * 10 + 0) * 2	; 目的数据偏移。屏幕第 10 行, 第 0 列。
+	; cld使DF 复位，即是让DF=0，让内存地址增大
+	; 目的串必须在附加段中,即必须是ES:[DI]
+	; 源串允许使用段跨越前缀来修饰,但偏移地址必须是[SI].
 	cld
 .1:
+	; 把esi指向的内存地址中的值加载到al/ax/eax中
 	lodsb
+	; al中的值是否为空，若为空，跳转到.2
 	test	al, al
 	jz	.2
+	; 把ax中的值写入显存[gs:eid]位置
 	mov	[gs:edi], ax
+	; 2个字节存储一个字符，分别是背景和值
 	add	edi, 2
 	jmp	.1
 .2:	; 显示完毕
 
+	; 打印换行符
 	call	DispReturn
 
-	call	TestRead
-	call	TestWrite
-	call	TestRead
+	call	TestRead					; 什么也不输出
+	call	TestWrite					; 写入数据
+	call	TestRead					; 输出上面的函数写入的数据
 
 	; 到此停止
 	jmp	SelectorCode16:0
 
 ; ------------------------------------------------------------------------
 TestRead:
+	; 复位 esi
 	xor	esi, esi
+	; 循环8次
 	mov	ecx, 8
 .loop:
 	mov	al, [es:esi]
+	; 打印al中的值
 	call	DispAL
 	inc	esi
 	loop	.loop
-
+	
+	; 输出换行符
 	call	DispReturn
-
+	
+	; 在函数的末尾必须使用的指令，让cs:ip指向函数调用指令的下一条指令
 	ret
 ; TestRead 结束-----------------------------------------------------------
 
@@ -229,6 +243,7 @@ TestWrite:
 	xor	esi, esi
 	xor	edi, edi
 	mov	esi, OffsetStrTest	; 源数据偏移
+	; 设置fd=0，esi递增
 	cld
 .1:
 	lodsb
@@ -247,6 +262,9 @@ TestWrite:
 
 
 ; ------------------------------------------------------------------------
+; 写入显存的是ascii码。
+; 将al中的数字分为高四位、低四位进行展示。
+; 大于9时，显示为A-F的字母；小于9时，显示为0-9的数字。当然，直接写入显存的都是ascii码。
 ; 显示 AL 中的数字
 ; 默认地:
 ;	数字已经存在 AL 中
@@ -325,6 +343,7 @@ LABEL_SEG_CODE16:
 	and	al, 11111110b
 	mov	cr0, eax
 
+; 仍然不理解这句
 LABEL_GO_BACK_TO_REAL:
 	jmp	0:LABEL_REAL_ENTRY	; 段地址会在程序开始处被设置成正确的值
 
