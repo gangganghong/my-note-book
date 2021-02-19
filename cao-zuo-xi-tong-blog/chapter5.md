@@ -174,11 +174,7 @@ p_vaddr，段的第一个字节在内存中的虚拟地址。属于program heade
 | e_shnum     | 4H    | Section header table中有4H个条目     |
 | e_shstrndx  | 3H    | 包含节名称的字符串表是第3个节        |
 
-
-
 ### program header
-
-
 
 | 项目     | 值     | 说明                                                       |
 | -------- | ------ | ---------------------------------------------------------- |
@@ -242,6 +238,25 @@ BaseOfKernelFilePhyAddr 是内核的物理地址，BaseOfKernelFilePhyAddr+2Ch �
 ```shell
 [root@localhost pegasus-os]# ls /usr/include/elf.h
 /usr/include/elf.h
+```
+
+
+
+```c
+// 在 /usr/include/elf.h 中用关键词 Program 搜索
+/* Program segment header.  */
+
+typedef struct
+{
+  Elf32_Word    p_type;                 /* Segment type */
+  Elf32_Off     p_offset;               /* Segment file offset */
+  Elf32_Addr    p_vaddr;                /* Segment virtual address */
+  Elf32_Addr    p_paddr;                /* Segment physical address */
+  Elf32_Word    p_filesz;               /* Segment size in file */
+  Elf32_Word    p_memsz;                /* Segment size in memory */
+  Elf32_Word    p_flags;                /* Segment flags */
+  Elf32_Word    p_align;                /* Segment alignment */
+} Elf32_Phdr;
 ```
 
 
