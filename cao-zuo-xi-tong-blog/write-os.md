@@ -799,7 +799,179 @@ prefetch: EIP [00010000] > CS.limit [0000ffff]
 
 ##### 验证重新放置后的内核
 
+下面的代码都运行在实模式下。
+
 通过bochs断点调试验证。
+
+```assembly
+; Memcpy(p_vaddr, p_off, p_size)
+Memcpy:
+        push bp
+        ; 在新元素入栈前获取sp，方便获取函数的参数。
+        mov bp, sp
+        push ax
+        push cx
+        push si
+        push di
+        ;mov bp, sp
+        ;mov di, [bp + 4]        ; p_vaddr，即 dst
+        ;mov si, [bp + 8]        ; p_off，即 src
+        ;mov cx, [bp + 12]      ; 程序头的个数，即p_size
+
+        ;mov di, [bp + 8]        ; p_vaddr，即 dst
+        ;mov si, [bp + 12]        ; p_off，即 src
+        ;mov cx, [bp + 16]       ; 程序头的个数，即p_size
+				
+				; 增幅为何是2？因为，这是在实模式下的汇编代码，每个参数的长度是16位，即2个字节。
+				; 注意，[bp+4]中的4的单位是字节，8个bit。
+				; 为什么第一个参数是[bp+4]？因为开头push bp，[bp+2]是原始bp。
+				; 那么，[bp+0]是什么？[bp+0]是call Func入栈的ip。
+        mov di, [bp + 4]        ; p_vaddr，即 dst。函数的第一个参数。
+        mov si, [bp + 6]        ; p_off，即 src。函数的第二个参数。
+        mov cx, [bp + 8]       ; 程序头的个数，即p_size。函数的第三个参数。
+        ; 因为，这个函数的功能是，把数据从0x8000开始的内存复制到从0x6000开始的内存，所以，要修改es。
+        ; 因为下面复制数据是在[es:di]和[ds:si]之间复制。
+        push es
+        mov es, di
+        mov di, 0
+
+.1:
+        mov byte al, [ds:si]
+        mov [es:di], al
+        inc si
+        inc di
+        dec cx
+
+        cmp cx, 0
+        jz .2
+        jmp .1
+
+.2:
+        pop es
+        mov ax, [bp + 4]
+
+        pop di
+        pop si
+        pop cx
+        pop ax
+        pop bp
+
+        ret
+```
+
+
+
+```assembly
+; 重新放置内核
+InitKernel:
+       push ax
+       push cx
+       push si
+       ; commont start
+       ; mov cx, [BaseOfKernel3 + 2CH] 的实质是 mov cx, word ptr ds:0x802c这种语句，所以，需要修改ds和BaseOfKernel3。
+       mov ax, 0x8000
+       push ds
+       mov ds, ax
+       ; commont end
+        xchg bx, bx
+       ;程序段的个数
+        ;mov cx, word ptr ds:0x802c
+       ; mov cx, [BaseOfKernel3 + 2CH] 等价于 mov cx, word ptr ds:BaseOfKernel3 + 2CH。
+       ; 这是断点调试看到的，原因未知。
+       ; 另外，mov cx, word ptr 0x0:0x802c 结果与 mov cx, word ptr 0x8000:0x2c 不同。
+       mov cx, [BaseOfKernel3 + 2CH]
+       ; mov ax, [BaseOfKernel + 2CH]
+       ;程序头表的内存地址
+       xor si, si
+       mov si, [BaseOfKernel3 + 1CH]
+       add si, BaseOfKernel3
+        xchg bx, bx
+
+.Begin2:
+      mov ax, [si + 10H]
+      ;push word [si + 10H]
+      push word ax
+
+       mov ax, BaseOfKernel3
+       add ax, [si + 4H]
+       push word ax
+        mov ax, [si + 8H]
+        push ax
+        ;push word [si + 8H]
+        xchg bx, bx
+        call Memcpy
+        xchg bx, bx
+        ; 三个参数，占用3个字,6个字节
+        add sp, 6
+        dec cx
+        cmp cx, 0
+        jz .NoAction
+        add si, 20H
+        jmp .Begin2
+;
+.NoAction:
+        pop ds
+        pop si
+        pop cx
+        pop ax
+
+        ret
+        
+BaseOfKernel    equ     0x8000
+BaseOfKernel2   equ     0x6000
+BaseOfKernel3   equ     0x0
+OffSetOfLoader  equ     0x0
+BaseOfFATEntry  equ     0x1000
+```
+
+
+
+耗费了两天左右（可能是三天），才写完了实模式下的“重新放置内核”功能。大概在昨天这个时候取得突破。
+
+遇到的问题分别有：
+
+1. Loader.asm中的代码不执行。boot.asm只能读取一个扇区的数据。偶然想到的，之前遇到过。
+2. Kernel.asm执行不正常（没有打印应该打印的字符）。设置显存坐标超过最大值了，例如，把行坐标设置为28。
+3. kernel是不是elf文件都能执行。我的猜测，cpu遇到可执行指令就执行，遇到不可执行指令要么什么也不做要么报错。只要设置的起点在可执行指令的前面，总会执行到可执行指令。因此，无论是否elf文件都能执行。
+4. 不重新放置内核都能正常执行。原因同3。
+5. 栈
+   1. 实模式下栈的增幅是2个字节（16个bit），我把增幅写成了4个字节（32个bit）。
+   2. 在函数调用中，先将原始bp入栈，再通过bp从栈中获取参数。
+6. 验证“重新放置内核“是否成功。例如，将内核重新放置到了0x6000:0x400，那么，通过bochs断点调试来查看二进制代码与xxd在查看kernel.bin到的二进制代码是否一致就能验证”重新放置内核“是否成功。
+   1. 这个验证，只能证明只有一个程序段的内核被重新放置。
+
+
+
+解决这个问题为什么很慢？没有明确问题是什么，仅仅只是觉得不正确，然后就一次次地没有明确目的地调试。突破出现在我明确界定问题之后。
+
+`kernel.asm`内容如下：
+
+```assembly
+[section .text]
+
+global _start
+
+_start:
+        ;mov ax, 2
+        ;jmp $
+        xchg bx, bx
+        mov ax, 0xB800
+       ;jmp $
+       ;jmp $
+       ;jmp $
+        mov gs, ax
+        mov ah, 0Fh
+        mov al, 'C'
+        mov [gs:(80 * 20 + 40) * 2], ax
+        mov [gs:(80 * 21 + 40) * 2], ax
+        mov [gs:(80 * 22 + 80) * 2], ax
+        jmp $
+        jmp $
+```
+
+上面的源代码中是否包含“global _start _start:"等语句不影响这份源代码能不能编译成elf文件。只要在编译时指定了`-f elf`就能把它编译成elf文件。我的猜想，`section`等没有对应的二进制代码，只是给人类看的，在二进制文件中不包含`section`这类指令。
+
+
 
 ### 写内核
 
