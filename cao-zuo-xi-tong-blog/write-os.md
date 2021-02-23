@@ -971,7 +971,508 @@ _start:
 
 上面的源代码中是否包含“global _start _start:"等语句不影响这份源代码能不能编译成elf文件。只要在编译时指定了`-f elf`就能把它编译成elf文件。我的猜想，`section`等没有对应的二进制代码，只是给人类看的，在二进制文件中不包含`section`这类指令。
 
+#### bochs xp
 
+x /nuf [addr] 显示线性地址的内容
+
+xp /nuf [addr] 显示物理地址的内容
+
+n 显示的单元数
+
+u 每个显示单元的大小，u可以是下列之一：
+
+b BYTE
+
+h WORD
+
+w DWORD
+
+g DWORD64
+
+注意: 这种命名法是按照GDB习惯的，而并不是按照inter的规范。
+
+### v3-loader
+
+这个版本，完成下面的功能：
+
+1. 准备好GDT。
+2. 开启保护模式。
+3. 进入保护模式。
+4. 重新放置内核。
+
+
+
+最大的难点是，准备好GDT，更具体地说，是特权级(CPL、DPL、RPL)。
+
+完全不知道怎么写。想到什么写什么吧。
+
+重新放置内核是在实模式下还是在保护模式下？在保护模式下。因为，内核的入口地址是`0x30400`。在下面的代码中，
+
+```assembly
+READ_FILE_OVER:
+        xchg bx, bx
+        mov al, 'O'
+        mov ah, 0Dh
+        mov [gs:(80 * 23 + 33) * 2], ax
+        ; 在内存中重新放置内核
+        call InitKernel
+
+        xchg bx, bx
+        ;jmp BaseOfKernel:73h
+        ;jmp BaseOfKernel:61h
+        jmp BaseOfKernel2:400h
+        ;jmp BaseOfKernel:60h
+        ;jmp BaseOfKernel:0
+        ;jmp BaseOfKernel:OffSetOfLoader
+        ;jmp BaseOfKernel2:0x30400
+        ;jmp BaseOfKernel:OffSetOfLoader
+        ;jmp BaseOfKernel:40h
+        ;jmp OVER
+        
+BaseOfKernel2   equ     0x30000  
+```
+
+`jmp BaseOfKernel2:400h`会跳转到`0x30400`。
+
+编译时出错：
+
+```shell
+[root@localhost v3]# make
+nasm -o loader.bin loader.asm
+loader.asm:194: warning: word data exceeds bounds [-w+number-overflow]
+dd if=boot.bin of=a.img count=1 conv=notrunc
+```
+
+
+
+```shell
+<bochs:2> sreg
+es:0x0000, dh=0x00009300, dl=0x0000ffff, valid=7
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+cs:0xf000, dh=0xff0093ff, dl=0x0000ffff, valid=7
+	Data segment, base=0xffff0000, limit=0x0000ffff, Read/Write, Accessed
+ss:0x0000, dh=0x00009300, dl=0x0000ffff, valid=7
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+ds:0x0000, dh=0x00009300, dl=0x0000ffff, valid=7
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+fs:0x0000, dh=0x00009300, dl=0x0000ffff, valid=7
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+gs:0x0000, dh=0x00009300, dl=0x0000ffff, valid=7
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x0000000000000000, limit=0xffff
+idtr:base=0x0000000000000000, limit=0xffff
+```
+
+
+
+~~我的猜想是，在实模式下，`jmp 段地址：偏移量`中的段地址的最大值是`0xffff`。`jmp 0x30000`超过了这个最大值，因此不能正确执行。~~
+
+16位寄存器不能存储`0x30000`，这才是这份代码不能正确执行的原因。
+
+#### 需要设置几个全局描述符
+
+不知道。
+
+在哪里需要用到全局描述符？不知道。
+
+在哪里需要用到GDT的选择子。不知道。
+
+全局描述符的属性应该怎么设置？不知道。这些属性不能随意设置吗？不知道。
+
+这么多不知道的知识点，空想也没有用，只能看别人的代码了。一直以来，我都是这样做的。
+
+怎么写操作系统？我遵循的流程是：
+
+1. 自己想。
+2. 想不出怎么写，看别人的代码，理解每一行代码，记下来，能复述出来。
+3. 根据复述出来的知识点，自己动手写代码。
+4. 测试代码。
+
+以后的每项功能，都用这个流程去开发。
+
+
+
+#### 实模式下的内存寻址方式
+
+在实模式下，内存的寻址方式是：
+
+1. 内存地址是：段地址:偏移量，例如：`0x6000:0x400`。
+2. 这个内存地址的物理地址是：`0x60400`。计算公式是：物理地址 = 段地址 * 16 + 偏移量。
+
+怎么验证这个公式呢？用下面的方法。
+
+```assembly
+jmp BaseOfKernel2:400h
+BaseOfKernel2:	db 0x6000
+```
+
+使用bochs断点查看
+
+```shell
+<bochs:8> xp /1hx 0x6000:0x400
+[bochs]:
+0x0000000000060400 <bogus+       0>:	0x8766
+<bochs:9> xp /1hx 0x60400
+[bochs]:
+0x0000000000060400 <bogus+       0>:	0x8766
+```
+
+内存`0x6000:0x400`和内存`0x60400`中的数据相同，这证明上面的公式是正确的。
+
+在保护模式下，内存地址仍然是”段：偏移量“。不过，”段“是”全局描述符的选择子，而“偏移量”变成了物理地址。仍然不是非常理解这种表示方法。
+
+全局描述符的选择子，表示为：全局描述符的标号 - 第一个全局描述符。
+
+首先，建立全局描述符宏H，这个宏有三个参数，分别是：段基址、段界限、段属性。段属性最难。
+
+然后，用H创建全局描述符。暂时只创建这几个描述符：空描述符、显存描述符。
+
+加载GDT，使用`lgdt [GDTPtr]`。`GdtPtr`是啥？它的结构是：GDT界限 GDT的初始地址。
+
+有一个寄存器，名称是`gdtr`，专门用来存储GDT的物理地址。gdtr的结构如下：
+
+```shell
+-----------------------------------------------------------
+|			32位基地址													|		16位界限				|
+-----------------------------------------------------------
+```
+
+#### 好多疑问
+
+1. ```assembly
+   ; GDT ------------------------------------------------------------------------------------------------------------------------------------------------------------
+   ;                                                段基址            段界限     , 属性
+   LABEL_GDT:			Descriptor             0,                    0, 0						; 空描述符
+   LABEL_DESC_FLAT_C:		Descriptor             0,              0fffffh, DA_CR  | DA_32 | DA_LIMIT_4K			; 0 ~ 4G
+   LABEL_DESC_FLAT_RW:		Descriptor             0,              0fffffh, DA_DRW | DA_32 | DA_LIMIT_4K			; 0 ~ 4G
+   LABEL_DESC_VIDEO:		Descriptor	 0B8000h,               0ffffh, DA_DRW                         | DA_DPL3	; 显存首地址
+   ; GDT ------------------------------------------------------------------------------------------------------------------------------------------------------------
+   ```
+
+   1. 设置了`LABEL_DESC_FLAT_C`、`LABEL_DESC_FLAT_RW` 这两个段基址和段界限相同、属性不同的段。这两个段的数据会互相覆盖吗？数据能共用吗？
+   2. 例如，在`LABEL_DESC_FLAT_C:0x2`存储数据`aa`，那么，通过`LABEL_DESC_FLAT_RW:0x2`读取到的数据也是`aa`吗？
+   3. 在`LABEL_DESC_FLAT_C:0x2`存储数据`aa`，在`LABEL_DESC_FLAT_RW:0x2`存储数据`bb`，那么，通过`LABEL_DESC_FLAT_C:0x2`和`LABEL_DESC_FLAT_RW:0x2`读取到的数据都是`bb`吗？
+
+
+
+#### debug
+
+```assembly
+; GDT ------------------------------------------------------------------------------------------------------------------------------------------------------------
+;                                                段基址            段界限     , 属性
+LABEL_GDT:			Descriptor             0,                    0, 0						; 空描述符
+LABEL_DESC_FLAT_C:		Descriptor             0,              0fffffh, DA_CR  | DA_32 | DA_LIMIT_4K			; 0 ~ 4G
+LABEL_DESC_FLAT_RW:		Descriptor             0,              0fffffh, DA_DRW | DA_32 | DA_LIMIT_4K			; 0 ~ 4G
+LABEL_DESC_VIDEO:		Descriptor	 0B8000h,               0ffffh, DA_DRW                         | DA_DPL3	; 显存首地址
+; GDT ------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+GdtLen		equ	$ - LABEL_GDT
+GdtPtr		dw	GdtLen - 1				; 段界限
+		dd	BaseOfLoaderPhyAddr + LABEL_GDT		; 基地址
+
+; GDT 选择子 ----------------------------------------------------------------------------------
+SelectorFlatC		equ	LABEL_DESC_FLAT_C	- LABEL_GDT
+SelectorFlatRW		equ	LABEL_DESC_FLAT_RW	- LABEL_GDT
+SelectorVideo		equ	LABEL_DESC_VIDEO	- LABEL_GDT + SA_RPL3
+; GDT 选择子 ----------------------------------------------------------------------------------
+
+jmp	dword SelectorFlatRW:(BaseOfLoaderPhyAddr+LABEL_PM_START)
+```
+
+
+
+引发下面的错误：
+
+
+
+```shell
+<bochs:3> s
+00016183765e[CPU0  ] check_cs(0x0010): not a valid code segment !
+00016183765e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x0d)
+00016183765e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x08)
+00016183765i[CPU0  ] CPU is in protected mode (active)
+00016183765i[CPU0  ] CS.mode = 16 bit
+00016183765i[CPU0  ] SS.mode = 16 bit
+00016183765i[CPU0  ] EFER   = 0x00000000
+00016183765i[CPU0  ] | EAX=60000011  EBX=00000007  ECX=00000009  EDX=534d0400
+00016183765i[CPU0  ] | ESP=00000100  EBP=000002a7  ESI=000e029d  EDI=0000007a
+00016183765i[CPU0  ] | IOPL=0 id vip vif ac vm RF nt of df if tf sf zf af PF cf
+00016183765i[CPU0  ] | SEG sltr(index|ti|rpl)     base    limit G D
+00016183765i[CPU0  ] |  CS:9000( 0004| 0|  0) 00090000 0000ffff 0 0
+00016183765i[CPU0  ] |  DS:9000( 0005| 0|  0) 00090000 0000ffff 0 0
+00016183765i[CPU0  ] |  SS:9000( 0005| 0|  0) 00090000 0000ffff 0 0
+00016183765i[CPU0  ] |  ES:9000( 0005| 0|  0) 00090000 0000ffff 0 0
+00016183765i[CPU0  ] |  FS:0000( 0005| 0|  0) 00000000 0000ffff 0 0
+00016183765i[CPU0  ] |  GS:0000( 0005| 0|  0) 00000000 0000ffff 0 0
+00016183765i[CPU0  ] | EIP=00000281 (00000281)
+00016183765i[CPU0  ] | CR0=0x60000011 CR2=0x00000000
+00016183765i[CPU0  ] | CR3=0x00000000 CR4=0x00000000
+(0).[16183765] [0x000000090281] 9000:0000000000000281 (unk. ctxt): jmpf 0x0010:00090380      ; 66ea800309001000
+00016183765e[CPU0  ] exception(): 3rd (13) exception with no resolution, shutdown status is 00h, resetting
+00016183765i[SYS   ] bx_pc_system_c::Reset(HARDWARE) called
+00016183765i[CPU0  ] cpu hardware reset
+00016183765i[APIC0 ] allocate APIC id=0 (MMIO enabled) to 0x0000fee00000
+00016183765i[CPU0  ] CPU[0] is the bootstrap processor
+00016183765i[CPU0  ] CPUID[0x00000000]: 00000005 68747541 444d4163 69746e65
+00016183765i[CPU0  ] CPUID[0x00000001]: 00000633 00010800 00002028 17cbfbff
+00016183765i[CPU0  ] CPUID[0x00000002]: 00000000 00000000 00000000 00000000
+00016183765i[CPU0  ] CPUID[0x00000003]: 00000000 00000000 00000000 00000000
+00016183765i[CPU0  ] CPUID[0x00000004]: 00000000 00000000 00000000 00000000
+00016183765i[CPU0  ] CPUID[0x00000005]: 00000040 00000040 00000003 00000020
+00016183765i[CPU0  ] CPUID[0x80000000]: 80000008 68747541 444d4163 69746e65
+00016183765i[CPU0  ] CPUID[0x80000001]: 00000633 00000000 00000101 ebd3f3ff
+00016183765i[CPU0  ] CPUID[0x80000002]: 20444d41 6c687441 74286e6f 7020296d
+00016183765i[CPU0  ] CPUID[0x80000003]: 65636f72 726f7373 00000000 00000000
+00016183765i[CPU0  ] CPUID[0x80000004]: 00000000 00000000 00000000 00000000
+00016183765i[CPU0  ] CPUID[0x80000005]: 01ff01ff 01ff01ff 40020140 40020140
+00016183765i[CPU0  ] CPUID[0x80000006]: 00000000 42004200 02008140 00000000
+00016183765i[CPU0  ] CPUID[0x80000007]: 00000000 00000000 00000000 00000000
+00016183765i[CPU0  ] CPUID[0x80000008]: 00003028 00000000 00000000 00000000
+```
+
+这个错误是段属性造成的。
+
+`jmp	dword SelectorFlatC:(BaseOfLoaderPhyAddr+LABEL_PM_START)` 会把`cs`设置成`SelectorFlatC`的值`0x0010`。例如：
+
+```assembly
+; GDT ------------------------------------------------------------------------------------------------------------------------------------------------------------
+;                                                段基址            段界限     , 属性
+LABEL_GDT:			Descriptor             0,                    0, 0						; 空描述符
+LABEL_DESC_FLAT_C:		Descriptor             0,              0fffffh, DA_CR  | DA_32 | DA_LIMIT_4K			; 0 ~ 4G
+LABEL_DESC_FLAT_RW:		Descriptor             0,              0fffffh, DA_CR | DA_32 | DA_LIMIT_4K			; 0 ~ 4G
+LABEL_DESC_VIDEO:		Descriptor	 0B8000h,               0ffffh, DA_DRW                         | DA_DPL3	; 显存首地址
+; GDT ------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+GdtLen		equ	$ - LABEL_GDT
+GdtPtr		dw	GdtLen - 1				; 段界限
+		dd	BaseOfLoaderPhyAddr + LABEL_GDT		; 基地址
+
+; GDT 选择子 ----------------------------------------------------------------------------------
+SelectorFlatC		equ	LABEL_DESC_FLAT_C	- LABEL_GDT
+SelectorFlatRW		equ	LABEL_DESC_FLAT_RW	- LABEL_GDT
+SelectorVideo		equ	LABEL_DESC_VIDEO	- LABEL_GDT + SA_RPL3
+; GDT 选择子 ----------------------------------------------------------------------------------
+
+jmp	dword SelectorFlatRW:(BaseOfLoaderPhyAddr+LABEL_PM_START)
+```
+
+
+
+```shell
+(0) [0x000000090281] 9000:0000000000000281 (unk. ctxt): jmpf 0x0010:00090380      ; 66ea800309001000
+<bochs:2> sreg
+es:0x9000, dh=0x00009309, dl=0x0000ffff, valid=1
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+cs:0x9000, dh=0x00009309, dl=0x0000ffff, valid=1
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+ss:0x9000, dh=0x00009309, dl=0x0000ffff, valid=7
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+ds:0x9000, dh=0x00009309, dl=0x0000ffff, valid=3
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+fs:0x0000, dh=0x00009300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+gs:0x0000, dh=0x00009300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x000000000009013d, limit=0x1f
+idtr:base=0x0000000000000000, limit=0x3ff
+<bochs:3> s
+Next at t=16183766
+(0) [0x000000090380] 0010:0000000000090380 (unk. ctxt): xchg bx, bx               ; 6687db
+<bochs:4> sreg
+es:0x9000, dh=0x00009309, dl=0x0000ffff, valid=1
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+cs:0x0010, dh=0x00cf9b00, dl=0x0000ffff, valid=1
+	Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+ss:0x9000, dh=0x00009309, dl=0x0000ffff, valid=7
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+ds:0x9000, dh=0x00009309, dl=0x0000ffff, valid=3
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+fs:0x0000, dh=0x00009300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+gs:0x0000, dh=0x00009300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x000000000009013d, limit=0x1f
+idtr:base=0x0000000000000000, limit=0x3ff
+```
+
+在bochs中查看内存中的数据，仍然使用“段地址：偏移量”，例如：`xp /1wx 0x0010:0x90380`，bochs会自动计算出事件内存地址并且打印出该内存中的数据。在实模式下，我还能手工直接算出内存的实际地址，在保护模式下，计算实际内存地址很麻烦。
+
+纠正上面的说法，只是从选择子计算对应的段基址比较麻烦，实际内存地址（线性地址）的计算方法仍然是：段基址 + 偏移量。下面的断点调试结果能够验证这个结论。
+
+```shell
+<bochs:18> xp /1wx 0x8:0x90380
+[bochs]:
+0x0000000000090380 <bogus+       0>:	0x66db8766
+<bochs:19> xp /1wx 0x90380
+[bochs]:
+0x0000000000090380 <bogus+       0>:	0x66db8766
+```
+
+当前语境中，`0x8`对应的段的段基址是0。
+
+若是如此，我有很充分的理由相信：不同的段，段基址相同，段偏移量相同，那么，这两个段的内存空间是重合的。
+
+```shell
+<bochs:6> xp /1wx 0x0008:0x00000000000905da
+[bochs]:
+0x00000000000905da <bogus+       0>:	0x00c3d975
+<bochs:7> xp /1wx 0x00000000000905da
+[bochs]:
+0x00000000000905da <bogus+       0>:	0x00c3d975
+<bochs:8> xp /1wx 0x0010:0x00000000000905da
+[bochs]:
+0x00000000000905da <bogus+       0>:	0x00c3d975
+<bochs:9> 
+```
+
+上面的断点数据，又证明了不同的段（段基址、段界限）使用的相同的内存空间。那么，有啥必要弄两个基本相同、只是属性不同的段？
+
+内存访问为啥要分段访问？
+
+1. 为了重定位。以前，程序中使用内存的物理地址，要同时运行多个程序非常麻烦（需要在程序中写死它所使用的内存，还要保证这片内存不被其他程序改写）。
+2. 为了访问所有内存。以前，能访问的内存很小，要访问全部内存，只能将内存划分为段基址不同的若干个段，然后通过在不同的段之间跳转来访问所有的内存。
+3. 后来，能够用一个段访问全部内存空间，为啥还是要分段访问内存？
+
+
+
+#### 段描述符的属性
+
+详情见《操作系统真相还原》4.3.1节。
+
+在这个问题上耗费了40多分钟，原因是：两本书上的说明不一致。
+
+《操作系统真相还原》
+
+![image-20210223152935498](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210223152935498.png)
+
+
+
+《X86汇编语言：从实模式到保护模式》
+
+![image-20210223153134430](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210223153134430.png)
+
+《一个操作系统的实现》
+
+![image-20210223153212938](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210223153212938.png)
+
+三本书都没有错。第一本书和后面两本书对应不上，是因为第一本书没有按照第0位到第3位的顺序排列。
+
+对代码段来说，按照从第0位到第3位的顺序排列，依次是：X、C、R、A。用下面的实例来理解：
+
+1. Ch。12 = 8 + 4。1100。X:1，C:1。可执行、一致代码段。
+2. Ah。10 = 8 + 2。1010。X:1,C:0,R:1。可执行、可读。
+3. Bh。11 = 8 + 3。1011。X：1，C：0，R：1，A：1。可执行、可读、已访问。
+
+TYPE和S结合起来才有意义。S为0时，表示系统段；S为1时，表示数据段（又叫非系统段）。
+
+在第一张图中，非系统段又分为代码段和数据段。怎么区分二者呢？看X位是多少。X是1，代码段。X是0，数据段。代码段可执行，数据段不可执行。只用一位，自然不能同时表示这个段可执行、又不可执行。这或许就是于上神要对0~~4GB这片内存创建两个段描述符的原因吧。感觉这个解释仍然不是很让我信得过。
+
+数据段一定是可读的，一定是不可执行的。
+
+代码段一定是不可写的，一定是可执行的。
+
+创建段描述符的宏的第三个参数，段属性，写成多个值组成的比较好。段属性的构成要素是：TYPE、S、DPL、P、AVL、L、D/B、G。我觉得，直接把所有的要素都写到参数中更好，直观。如果只写出一个结果，例如'Ch'，可读性太差，还需要计算。
+
+目前，可执行段、可读写段、视频段：
+
+1. 都是非系统段，S为1。
+2. DPL
+   1. 可执行段、可读写段，设置为0。
+   2. 视频段，设置为：3。必须为3，经过运行，确实如此。原因未知。
+3. P，设置为0。
+4. AVL，设置为0。
+5. L，设置为0。
+6. D/B，设置为1。
+7. G，设置为1。
+8. TYPE
+   1. 可执行段，设置为：X：1，C：1，R：0，A：0。Ah。
+   2. 可读写段，设置为：X：0，E：0，W：1，A：0。2h。
+   3. 视频段，设置为：X：0，E：0，W：1，A：0。2h。
+
+一直深感恐惧的段描述符及其属性，在这个阶段，只需要简单设置就行了。
+
+#### 别人的代码流程
+
+1. FAT12文件头。
+
+2. 用宏创建三个段描述符。
+
+   1. 可执行段。
+   2. 可读写段。
+   3. 视频段。
+
+3. 创建GdtPtr。它存储GDT的物理地址。GDT的物理地址就是GDT中的第一个元素的地址。
+
+   1. 本结构由48个bit组成。低16位是界限，高32位是基地址。
+   2. 基地址是GDT中的第一个元素的物理地址。
+   3. 界限是GDT的最后一个字节的地址，等于GDT的长度-1，因为，计算从0开始。例如，长度是3，从0开始计数，最后一个地址是2。
+   4. CPU提供了专门存储GDT物理地址的寄存器，`lgdt`。加载GDT物理地址到`lgdt`的语法：`lgdt [GdtPtr]`。
+
+4. 创建段选择子。
+
+   1. 很容易。用目标描述符的标号-第一个描述符的标号。
+   2. 选择子的结构：第0~2位是RPL，第3位是T1，第4~15位是描述符索引（GDT中的偏移量，第几个描述符）。
+   3. T1是0，表示这个选择子是在GDT中索引段描述符；T1是1，表示这个选择子是在LDT中索引段描述符。
+   4. 为什么要创建选择子？在保护模式下，段地址：偏移量的寻址方式中，段地址是段的选择子。创建选择子，是保护模式下内存寻址的需要。
+
+5. 进入保护模式。
+
+   1. 上面准备好GDT和GDT的物理地址后，下面开启保护模式。
+
+   2. 关中断，`cli`。在进入保护模式的过程中，CPU处理中断的机制发生改变，若接收到中断（实模式下的中断协议）会发生错误。我的猜想：跳入32位代码之前，中断机制就在某个步骤发生了改变。
+
+   3. 打开A20。
+
+      1. 就是往一个端口写入数据，使用`in`、`out`指令。
+
+      2. 哪个端口？92h。把端口92h的第2位设置为1。
+
+      3. 代码：
+
+         1. ```assembly
+            ; 把端口92h中的数据读入al
+            in al, 92h
+            ; 把al中的数据的第2位设置为1
+            or al, 10h
+            ; 把修改过后的al中的数据写到端口92h中
+            out 92h, al
+            ```
+
+         2. `in`、`out`两个指令的操作数的顺序，很容易混淆。这样记忆吧，这两个指令等同于`mov`，第一个参数都是数据的目标位置。
+
+   4. 设置cr0的PE位（cr0的第0位）为1。
+
+      1. PE是0时，CPU处于实模式；PE是1时，CPU处于保护模式。
+
+      2. 代码：
+
+         1. ```assembly
+            mov eax, cr0
+            or eax, 1
+            mov cr0, eax
+            ```
+
+         2. 为啥能直接用eax？不是还没有进入保护模式吗？我的猜想：打开了A20，就已经能使用大于20位的数据线了。
+
+         3. 还不清楚A20的工作机制。
+
+   5. 把GDT的物理地址加载到`lgdt`，`lgdt [GdtPtr]`。
+
+   6. 跳转到32位代码。注意，这个跳转需要指定数据类型（？这个说法准确吗），`jmp dword`。
+
+   7. 上面的步骤能改变顺序吗？
+
+6. 进入保护模式后，cs被`jmp`设置成了可执行代码段，然后，显式设置ds、es、fs、ss的值为可读可写代码段选择子，设置gs的值是视频段的选择子。
+
+7. 在内存中重新放置内核。
+
+8. 跳转到内核的第一个程序段的入口。
 
 ### 写内核
 
