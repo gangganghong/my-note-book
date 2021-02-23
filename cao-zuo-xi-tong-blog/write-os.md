@@ -1474,6 +1474,129 @@ TYPE和S结合起来才有意义。S为0时，表示系统段；S为1时，表�
 
 8. 跳转到内核的第一个程序段的入口。
 
+#### 创建gdt
+
+十多天写过创建GDT的宏，可我又忘记了。
+
+先用C语言写出全局描述符的结构：
+
+```c
+struct descriptor{
+  unsigned short SegmentLimitLow;
+  unsigned short SegmentBaseLow;
+  unsigned char	SegmentBaseMid;
+  unsigned char SegmentAttributeLow;
+  unsigned char SegmentBaseLimitHigh_AttributeHigh;
+  unsigned char SegmentBaseHigh;
+};
+```
+
+用nasm汇编写全局描述符的结构。
+
+```assembly
+; 三个参数分别是段基址、段界限、段属性
+; 分别用 %1、%2、%3表示上面的三个参数
+%macro	Descriptor 3
+	dw	%2 & ffffh
+	dw	%1 & ffffh
+	db	(%1 >> 16) & ffh
+	db	%3 & ffh
+	db	((%2 >> 16) & fh) | (((%3 >> 8) & fh) << 4)
+	db	(%1 >> 24) & ffh
+%endmacro
+```
+
+
+
+可执行段的属性：
+
+ 1. TYPE：X--1，C--0，R--0，A--0
+
+ 2. S：0
+
+ 3. DPL：0
+
+ 4. D/B：1
+
+ 5. G：1，
+
+ 6. 按照段描述符中的属性位置排列起来：
+
+     1. | G    | D/B  | L    | AVL  | P    | DPL  | DPL  | S    | A    | R    | C    | X    |
+        | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+        | 1    | 1    | 0    | 0    | 0    | 0    | 0    | 0    | 0    | 0    | 0    | 1    |
+        |      |      |      |      |      |      |      |      |      |      |      |      |
+
+    2. 表格写反了，应该是：
+
+       | X    | C    | R    | A    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
+       | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+       | 1    | 0    | 0    | 0    | 1    | 0    | 0    | 1    | 0    | 0    | 1    | 1    |
+
+可读写段：
+
+| X    | E    | W    | A    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 0    | 0    | 1    | 0    | 1    | 0    | 0    | 1    | 0    | 0    | 1    | 1    |
+
+视频段：
+
+| X    | E    | W    | A    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 0    | 0    | 1    | 0    | 1    | 1    | 1    | 1    | 0    | 0    | 0    | 0    |
+
+使用宏创建GDT：
+
+```assembly
+LABEL_GDT:	0,												0,																	0
+LABLE_GDT_FLAT_X:	0,									fffffh,															893h
+LABLE_GDT_FLAT_WR:	0,								fffffh,															293h
+LABLE_GDT_VIDEO:		b800h,						ffffh,															2f0h
+```
+
+创建选择子：
+
+```assembly
+GdtLen	equ		$ - LABEL_GDT
+GdtPtr	dw	GdtLen - 1
+				dd	BaseOfLoader * 10 + LABEL_GDT
+SelectFlatX	equ	LABLE_GDT_FLAT_X - LABEL_GDT
+SelectFlatWR	equ	LABLE_GDT_FLAT_WR - LABEL_GDT
+SelectVideo		equ	LABLE_GDT_VIDEO - LABEL_GDT + 3
+```
+
+##### debug
+
+`jmp dword SelectFlatX:(BaseOfLoader * 10h + LABEL_PM_START)`报错：
+
+```shell
+(0) [0x00000009023e] 9000:000000000000023e (unk. ctxt): jmpf 0x0008:00090248      ; 66ea480209000800
+<bochs:13> s
+00014803608e[CPU0  ] check_cs(0x0008): not a valid code segment !
+00014803608e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x0d)
+00014803608e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x08)
+00014803608i[CPU0  ] CPU is in protected mode (active)
+00014803608i[CPU0  ] CS.mode = 16 bit
+00014803608i[CPU0  ] SS.mode = 16 bit
+00014803608i[CPU0  ] EFER   = 0x00000000
+00014803608i[CPU0  ] | EAX=60000011  EBX=00000600  ECX=00090002  EDX=0000000a
+00014803608i[CPU0  ] | ESP=0000ffce  EBP=00000000  ESI=000e007c  EDI=0000007a
+00014803608i[CPU0  ] | IOPL=0 id vip vif ac vm RF nt of df if tf sf zf af PF cf
+00014803608i[CPU0  ] | SEG sltr(index|ti|rpl)     base    limit G D
+00014803608i[CPU0  ] |  CS:9000( 0004| 0|  0) 00090000 0000ffff 0 0
+00014803608i[CPU0  ] |  DS:9000( 0005| 0|  0) 00090000 0000ffff 0 0
+00014803608i[CPU0  ] |  SS:0000( 0005| 0|  0) 00000000 0000ffff 0 0
+00014803608i[CPU0  ] |  ES:8000( 0005| 0|  0) 00080000 0000ffff 0 0
+00014803608i[CPU0  ] |  FS:0000( 0005| 0|  0) 00000000 0000ffff 0 0
+00014803608i[CPU0  ] |  GS:b800( 0005| 0|  0) 000b8000 0000ffff 0 0
+```
+
+调试了很久。目前，仍不知道问题在哪里。
+
+先看看选择子为`0x0008`的段描述符：
+
+`
+
 ### 写内核
 
 怎么写内核？我也忘记了。
