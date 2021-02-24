@@ -1357,6 +1357,8 @@ idtr:base=0x0000000000000000, limit=0x3ff
 
 ![image-20210223153134430](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210223153134430.png)
 
+上图中的红色注释是错误的，应该是：第0位是A，其他的依次是，R(第1位)、C（第2位）、X（第3位）。
+
 《一个操作系统的实现》
 
 ![image-20210223153212938](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210223153212938.png)
@@ -1533,6 +1535,12 @@ struct descriptor{
        | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
        | 1    | 0    | 0    | 0    | 1    | 0    | 0    | 1    | 0    | 0    | 1    | 1    |
 
+    3. 上面的表格错了，应该是：
+
+       | A    | R    | C    | X    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
+       | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+       | 0    | 1    | 0    | 1    | 1    | 0    | 0    | 1    | 0    | 0    | 1    | 1    |
+
 可读写段：
 
 | X    | E    | W    | A    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
@@ -1544,6 +1552,40 @@ struct descriptor{
 | X    | E    | W    | A    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
 | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
 | 0    | 0    | 1    | 0    | 1    | 1    | 1    | 1    | 0    | 0    | 0    | 0    |
+
+
+
+可读写段：
+
+| A    | W    | E    | X    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 0    | 1    | 0    | 0    | 1    | 0    | 0    | 1    | 0    | 0    | 1    | 1    |
+
+`0493h`。应该是`0c92h`。
+
+视频段：
+
+| A    | W    | E    | X    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 0    | 1    | 0    | 0    | 1    | 1    | 1    | 1    | 0    | 0    | 0    | 0    |
+
+`04f0h`
+
+视频段：
+
+| A    | W    | E    | X    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 0    | 0    | 0    | 0    | 1    | 1    | 1    | 1    | 0    | 0    | 1    | 0    |
+
+`0f2h`
+
+视频段：
+
+| A    | W    | E    | X    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 0    | 1    | 0    | 0    | 1    | 1    | 1    | 1    | 0    | 0    | 0    | 0    |
+
+`04f0h`。应该是：`0f4h`。应该是`0f2h`。
 
 使用宏创建GDT：
 
@@ -1595,7 +1637,596 @@ SelectVideo		equ	LABLE_GDT_VIDEO - LABEL_GDT + 3
 
 先看看选择子为`0x0008`的段描述符：
 
-`
+```
+xp /1gx 0x000000000009013e + 8
+xp /1gx 0x0000000000090146
+xp /1gx 0x0000000000090146 +8
+xp /1gx 0x000000000009014e
+xp /1gx 0x000000000009014e + 8
+xp /1gx 0x0000000000090156
+
+<bochs:6> xp /1gx 0x000000000009013e
+[bochs]:
+0x000000000009013e <bogus+       0>:	0x00000000
+<bochs:7> xp /1gx 0x0000000000090146
+[bochs]:
+0x0000000000090146 <bogus+       0>:	0x8f93000000ffff
+<bochs:8> xp /1gx 0x000000000009014e
+[bochs]:
+0x000000000009014e <bogus+       0>:	0xffffdb87db87
+<bochs:9> xp /1gx 0x0000000000090156
+[bochs]:
+0x0000000000090156 <bogus+       0>:	0x8000ffff002f9300
+
+10001111100100110000000000000000000000001111111111111111							; 56位，可执行段
+111111111111111111011011100001111101101110000111											; 48位，可读写段
+1000000000000000111111111111111100000000001011111001001100000000			; 64位，视频段
+
+1011 1000000000000000				; b8000h
+1111111111111111						; 0ffffh
+10 1111 0000									; 2f0
+
+
+100000 11110000  00001011   10000000000000001111111111111111
+
+; 52 位，视频段，少了12位
+
+00000000         111111110000         
+
+
+111111110000        ; 只有 12 位，还差四位。在段描述符中，尤其是中间位数，不能缺少
+
+00001011    
+10000000000000001111111111111111	; 40位，还差24位	
+10000000000000001111111111111111
+
+
+
+111100000000101110000000000000001111111111111111
+11110000  00001011    10000000000000001111111111111111
+
+0010   0000   11110000   00001011    10000000000000001111111111111111
+111100100000101110000000000000001111111111111111
+111100100000101110000000000000001111111111111111
+111100100000101110000000000000001111111111111111
+11110010  00001011     10000000000000001111111111111111
+
+
+0
+0FFFFFh:		1111 1111 1111 1111 1111
+398h:				0011 1001	1000
+  398h:				1100 1001	0001
+c91h
+
+				00000000
+11110010            00001011         10000000000000001111111111111111
+								00000000000000001111111111111111
+
+							00000000
+0011 1111   10011000					00000000      00000000000000001111111111111111
+											00000000000000001111111111111111
+				     00000000				     00000000			
+1100     1111     1001 1011     00000000				00000000000000001111111111111111	
+																00000000000000001111111111111111
+
+10001111100100110000000000000000000000001111111111111111								; 56位
+1000111110010011   00000000      00000000000000001111111111111111
+							00000000
+11 1111 10011000    00000000				00000000000000001111111111111111
+		 									00000000000000001111111111111111
+												
+```
+
+
+
+```shell
+Couldn't open log file: bochsout.txt, using stderr instead
+```
+
+执行bochs的用户无权限向bochsout.txt写入数据，导致上面的问题。修改bochsout.txt的用户是bochs的执行用户后，解决问题。使用命令：`chown cg bochsout.txt`。
+
+下面的问题：
+
+```shell
+00014033826i[BIOS  ] Booting from 0000:7c00
+268 00014803875e[CPU0  ] load_seg_reg(ES, 0x0fff): invalid segment
+269 00014803875e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x0d)
+270 00014803875e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x08)
+271 00014803875i[CPU0  ] CPU is in protected mode (active)
+272 00014803875i[CPU0  ] CS.mode = 16 bit
+273 00014803875i[CPU0  ] SS.mode = 16 bit
+274 00014803875i[CPU0  ] EFER   = 0x00000000
+275 00014803875i[CPU0  ] | EAX=60000ad1  EBX=00000600  ECX=00090002  EDX=00000057
+276 00014803875i[CPU0  ] | ESP=0000ffce  EBP=00000000  ESI=000e007c  EDI=0000007a
+277 00014803875i[CPU0  ] | IOPL=0 id vip vif ac vm RF nt of df if tf sf zf af pf CF
+278 00014803875i[CPU0  ] | SEG sltr(index|ti|rpl)     base    limit G D
+279 00014803875i[CPU0  ] |  CS:0010( 0002| 0|  0) 00000000 000fffff 0 0
+280 00014803875i[CPU0  ] |  DS:0018( 0003| 0|  0) 00000000 000fffff 0 0
+281 00014803875i[CPU0  ] |  SS:0018( 0003| 0|  0) 00000000 000fffff 0 0
+282 00014803875i[CPU0  ] |  ES:0018( 0003| 0|  0) 00000000 000fffff 0 0
+283 00014803875i[CPU0  ] |  FS:0018( 0003| 0|  0) 00000000 000fffff 0 0
+284 00014803875i[CPU0  ] |  GS:000b( 0001| 0|  3) 000b8000 0000ffff 0 0
+285 00014803875i[CPU0  ] | EIP=00000460 (00000460)
+286 00014803875i[CPU0  ] | CR0=0x60000011 CR2=0x00000000
+287 00014803875i[CPU0  ] | CR3=0x00000000 CR4=0x00000000
+288 00014803875e[CPU0  ] exception(): 3rd (13) exception with no resolution, shutdown status is 00h, resetting
+289 00014803875i[SYS   ] bx_pc_system_c::Reset(HARDWARE) called
+```
+
+
+
+```shell
+278 00014803875i[CPU0  ] | SEG sltr(index|ti|rpl)     base    limit G D
+279 00014803875i[CPU0  ] |  CS:0010( 0002| 0|  0) 00000000 000fffff 0 0
+280 00014803875i[CPU0  ] |  DS:0018( 0003| 0|  0) 00000000 000fffff 0 0
+281 00014803875i[CPU0  ] |  SS:0018( 0003| 0|  0) 00000000 000fffff 0 0
+282 00014803875i[CPU0  ] |  ES:0018( 0003| 0|  0) 00000000 000fffff 0 0
+283 00014803875i[CPU0  ] |  FS:0018( 0003| 0|  0) 00000000 000fffff 0 0
+284 00014803875i[CPU0  ] |  GS:000b( 0001| 0|  3) 000b8000 0000ffff 0 0
+```
+
+
+
+怎么理解？
+
+
+
+```shell
+xp /1gx 0x000000000009013d
+xp /1gx 0x0000000000090145
+
+<bochs:11> sreg
+es:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+cs:0x0008, dh=0x00cf9b00, dl=0x0000ffff, valid=1
+	Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+ss:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+ds:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+fs:0x0010, dh=0x00cf9300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+gs:0x001b, dh=0x0000f30b, dl=0x8000ffff, valid=1
+	Data segment, base=0x000b8000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x000000000009013d, limit=0x1f
+idtr:base=0x0000000000000000, limit=0x3ff
+<bochs:12> xp /1gx 0x000000000009013d
+[bochs]:
+0x000000000009013d <bogus+       0>:	0x00000000
+<bochs:13> xp /1gx 0x0000000000090145
+[bochs]:
+0x0000000000090145 <bogus+       0>:	0xcf9b000000ffff
+
+```
+
+
+
+```shell
+00014033826i[BIOS  ] Booting from 0000:7c00
+     268 00014351127e[CPU0  ] write_virtual_checks(): write beyond limit, r/w
+     269 00014351135e[CPU0  ] write_virtual_checks(): write beyond limit, r/w
+     270 00014351143e[CPU0  ] write_virtual_checks(): write beyond limit, r/w
+     271 00014351151e[CPU0  ] write_virtual_checks(): write beyond limit, r/w
+```
+
+
+
+整个白天都耗费在进入保护模式以后。在进入保护模式前，选择子的标号中的数据都是正常的。进入保护模式后，选择子的标号中的数据发生了改变。我反复尝试，在网上找了些资料，都没能解决问题。
+
+选择子在不同模式下发生改变，ds、gs的值不能被正常设置。原因不明。
+
+今天还做了一件事情：描述符的属性。耗费了太多太多时间。怎么弄正确的呢？从于上神的代码中断点获取描述符的属性，结合书本推测出应该怎样获取正确的属性。
+
+描述符的属性，应该是下面这个表格：
+
+| A    | R    | C    | X    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 0    | 1    | 0    | 1    | 1    | 0    | 0    | 1    | 0    | 0    | 1    | 1    |
+
+视频段：
+
+| A    | W    | E    | X    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 0    | 1    | 0    | 0    | 1    | 1    | 1    | 1    | 0    | 0    | 0    | 0    |
+
+`04f0h`。应该是：`0f4h`。应该是`0f2h`。
+
+可读写段：
+
+| A    | W    | E    | X    | S    | DPL  | DPL  | P    | AVL  | L    | D/B  | G    |
+| ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 0    | 1    | 0    | 0    | 1    | 0    | 0    | 1    | 0    | 0    | 1    | 1    |
+
+`0493h`。应该是`0c92h`。
+
+左边是低位，右边是高位。将数据填写到上面的表格后，把数据倒序，然后四个一组分为三组，把每组都转换成十六进制数，把这些数字连起来，就是最终的属性值。
+
+为什么慢？遇到问题，没有先想明确思路，靠直觉重复调试，思考得太少。
+
+这还是只是开始，睡前很高兴，觉得有了重大突破，哪知道醒来就被问题卡住了。后面不知道还有多少个问题等着我解决。像这样慢，不知道哪天才能做完。
+
+另外，睡前，明明看到正确的结果了，却未及时存档，导致现在无法再写出正确的代码。
+
+
+
+读取loader时，为啥要设置偏移？
+
+设置了偏移后，在开启保护模式后，为啥获取loader中的变量时不加上偏移量而只加上物理地址？
+
+```assembly
+; 真正进入保护模式
+	jmp	dword SelectorFlatC:(BaseOfLoaderPhyAddr+LABEL_PM_START)
+```
+
+
+
+在实模式下，物理地址等于段地址*16+偏移量。在上面的代码中，`BaseOfLoaderPhyAddr`这个名字不恰当，让人误解。它并不是物理地址，而是段基址乘以16的结果。应该把`BaseOfLoaderPhyAddr+LABEL_PM_START`当作一个整体看待。
+
+在真正进入保护模式前，段寄存器cs的值还未改变，此时，代码中的一个标号的偏移量的计算方法是实模式下物理地址的计算方法。
+
+这个理解，我总觉得有点牵强（或者说，有说不过去的地方），不过，目前我只能这样理解，不知道其他更好的理解方法。
+
+#### 进入保护模式debug
+
+所有关键代码，应该都没有问题。能够正确进入32位代码段，可是，无法正确改变ds、gs的值。
+
+出现报错信息：
+
+```shell
+269 00014803609e[CPU0  ] write_virtual_checks(): write beyond limit, r/w
+270 00014803609e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x0d)
+271 00014803609e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x08)
+272 00014803609i[CPU0  ] CPU is in protected mode (active)
+```
+
+表面原因是：进入32位代码后，选择子的值变化了，不再是实模式下取得的正确的值，然后将这些值设置给gs、ds时导致错误。
+
+这个问题，由于我无脑调试，耗费了11个小时却毫无进展，手都按疼了。
+
+##### 怎么办
+
+1. 描述符有没有问题？
+2. 编译时是不是应该设置`[BITS 32]`这些？
+3. 再重新对比一次我的代码和正确的代码。无收获。又反复试了好多次，出错的表面原因多种多样。
+4. 思考一下相关的理论知识。
+
+
+
+重点放在`[BITS 32]`。
+
+![image-20210225004914861](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210225004914861.png)
+
+问题被解决了！解决方法就在上图中。编译器提供了`bits伪指令。`bits`指令之后的指令都将按照`bits`设定的模式编译。
+
+那个耗费11个小时的错误，错在把不应该编译成32位的指令放在了`[bits 32]`后面，也就是把不该编译成32位指令的指令编译成了32位。这样具体造成了什么错误，我没有去考虑。不过，把需要编译成32位的指令放到了文件最后面、确保不会把其他指令误编译成32位，问题就消失了。
+
+```assembly
+[SECTION .s32]
+
+ALIGN   32
+
+[BITS   32]
+
+LABEL_PM_START:
+				jmp $
+        jmp $
+        jmp $
+        jmp $
+        
+        mov ax, SelectFlatWR
+        mov ds, ax
+        mov es, ax
+        mov fs, ax
+        mov ss, ax
+        mov ax, SelectVideo
+        mov gs, ax
+
+        mov gs, ax
+        mov al, 'K'
+        mov ah, 0Ah
+        mov [gs:(80 * 19 + 25) * 2], ax
+
+        jmp $
+        jmp $
+        jmp $
+        jmp $
+```
+
+
+
+上面的代码正确执行之后，段寄存器被设置成了下面那样的。
+
+
+
+```shell
+268 00014033826i[BIOS  ] Booting from 0000:7c00
+269 00300648000p[XGUI  ] >>PANIC<< POWER button turned off.
+270 00300648000i[CPU0  ] CPU is in protected mode (active)
+271 00300648000i[CPU0  ] CS.mode = 32 bit
+272 00300648000i[CPU0  ] SS.mode = 32 bit
+273 00300648000i[CPU0  ] EFER   = 0x00000000
+274 00300648000i[CPU0  ] | EAX=60000a4b  EBX=00000600  ECX=00090002  EDX=0000000a
+275 00300648000i[CPU0  ] | ESP=0000ffce  EBP=00000000  ESI=000e007c  EDI=0000007a
+276 00300648000i[CPU0  ] | IOPL=0 id vip vif ac vm rf nt of df if tf sf zf af PF cf
+277 00300648000i[CPU0  ] | SEG sltr(index|ti|rpl)     base    limit G D
+278 00300648000i[CPU0  ] |  CS:0008( 0001| 0|  0) 00000000 ffffffff 1 1
+279 00300648000i[CPU0  ] |  DS:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+280 00300648000i[CPU0  ] |  SS:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+281 00300648000i[CPU0  ] |  ES:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+282 00300648000i[CPU0  ] |  FS:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+283 00300648000i[CPU0  ] |  GS:001b( 0003| 0|  3) 000b8000 0000ffff 0 0
+284 00300648000i[CPU0  ] | EIP=0009037f (0009037f)
+285 00300648000i[CPU0  ] | CR0=0x60000011 CR2=0x00000000
+286 00300648000i[CPU0  ] | CR3=0x00000000 CR4=0x00000000
+287 00300648000i[CMOS  ] Last time is 1614186688 (Wed Feb 24 09:11:28 2021)
+288 00300648000i[XGUI  ] Exit
+289 00300648000i[SIM   ] quit_sim called with exit code 1
+```
+
+
+
+```shell
+00000000: EB 62 90 46 6F 72 72 65 73 74 59 00 02 01 01 00  .b.ForrestY.....
+00000010: 02 E0 00 40 0B F0 09 00 12 00 02 00 00 00 00 00  ...@............
+00000020: 00 00 00 00 00 00 29 00 00 00 00 4F 72 61 6E 67  ......)....Orang
+00000030: 65 53 30 2E 30 32 46 41 54 31 32 20 20 20 00 00  eS0.02FAT12   ..
+00000040: 00 00 00 00 00 00 FF FF 00 00 00 9A CF 00 FF FF  ................
+00000050: 00 00 00 92 CF 00 FF FF 00 80 0B F2 00 00 1F 00  ................
+00000060: 3E 01 09 00 B8 00 B8 8E E8 B4 0C B0 58 65 A3 28  >...........Xe.(
+00000070: 0A B8 00 80 8E C0 B8 00 90 8E D8 B4 00 B2 00 CD  ................
+00000080: 13 B8 13 00 B1 01 BB 00 00 E8 12 01 B9 04 00 BB  ................
+00000090: 90 0B BF 00 00 83 F9 00 74 72 51 BE 49 02 B9 0B  ........trQ.I...
+000000a0: 00 BA 00 00 AC 26 3A 05 75 0A 49 47 42 83 FA 0B  .....&:.u.IGB...
+000000b0: 74 1C EB F0 B0 45 B4 0C 65 89 07 81 C3 A0 00 59  t....E..e......Y
+000000c0: 83 F9 00 49 74 46 83 E7 E0 83 C7 20 EB C7 B0 53  ...ItF..... ...S
+000000d0: B4 0A 65 A3 A6 0E 83 E7 E0 83 C7 1A 89 FE B8 00  ..e.............
+000000e0: 80 1E 8E D8 AD 1F 50 BB 00 00 53 83 C0 13 83 C0  ......P...S.....
+000000f0: 0E 83 E8 02 B1 01 5B E8 A4 00 81 C3 00 02 58 53  ......[.......XS
+00000100: E8 51 00 5B 50 3D F8 0F 73 0C EB DE B0 4E B4 0A  .Q.[P=..s....N..
+00000110: 65 A3 A8 0E EB 22 87 DB 0F 01 16 5E 01 FA E4 92  e....".....^....
+00000120: 0C 02 E6 92 0F 20 C0 66 83 C8 01 0F 22 C0 87 DB  ..... .f...."...
+00000130: 66 EA 60 03 09 00 08 00 EB FE 48 65 6C 6C 6F 2C  f.`.......Hello,
+00000140: 57 6F 72 6C 64 20 4F 53 21 4B 45 52 4E 45 4C 20  World OS!KERNEL
+00000150: 20 42 49 4E 50 B4 00 B2 00 CD 13 58 BA 00 00 BB   BINP......X....
+00000160: 03 00 F7 E3 BB 02 00 F7 F3 89 16 00 00 BA 00 00  ................
+00000170: B9 00 02 F7 F1 83 C0 01 B1 02 BB 00 00 06 52 50  ..............RP
+00000180: B8 00 10 8E C0 58 E8 15 00 5A 01 D3 26 8B 07 07  .....X...Z..&...
+00000190: 80 3E 00 00 00 74 03 C1 E8 04 25 FF 0F C3 50 55  .>...t....%...PU
+000001a0: 53 89 E5 83 EC 02 88 4E FE B3 12 F6 F3 88 C5 D0  S......N........
+000001b0: ED 88 C6 80 E6 01 B2 00 FE C4 88 E1 8A 46 FE 83  .............F..
+000001c0: C4 02 B4 02 5B CD 13 5D 58 C3 55 89 E5 50 51 56  ....[..]X.U..PQV
+000001d0: 57 8B 7E 04 8B 76 06 8B 4E 08 06 8E C7 BF 00 00  W.~..v..N.......
+000001e0: 3E 8A 04 26 88 05 46 47 49 83 F9 00 74 02 EB F0  >..&..FGI...t...
+000001f0: 07 8B 46 04 5F 5E 59 58 5D C3 50 51 56 B8 00 80  ..F._^YX].PQV...
+00000200: 1E 8E D8 87 DB 8B 0E 2C 00 31 F6 8B 36 1C 00 83  .......,.1..6...
+00000210: C6 00 87 DB 8B 44 10 50 B8 00 00 03 44 04 50 8B  .....D.P....D.P.
+00000220: 44 08 50 87 DB E8 A2 FF 87 DB 83 C4 06 49 83 F9  D.P..........I..
+00000230: 00 74 05 83 C6 20 EB DC 1F 5E 59 58 C3 B5 00 B1  .t... ...^YX....
+00000240: 02 B6 01 B2 00 B0 01 B4 02 BB 00 80 CD 13 C3 00  ................
+00000250: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+00000260: 66 B8 10 00 8E D8 8E C0 8E E0 8E D0 66 B8 1B 00  f...........f...
+00000270: 8E E8 8E E8 B0 4B B4 0A 65 66 A3 12 0C 00 00 EB  .....K..ef......
+00000280: FE EB FE EB FE EB FE                             .......
+```
+
+
+
+```assembly
+; filename: bits-demo.asm
+; nasm -o bits-demo bits-demo.asm
+mov ax, 3
+mov cx, 1
+jmp $
+jmp $
+
+SelectFlatWR    equ     $ - $$
+SelectVideo     equ     $ - $$
+
+[SECTION .s32]
+
+ALIGN   32
+
+[BITS   32]
+
+LABEL_PM_START:
+                                jmp $
+        jmp $
+        jmp $
+        jmp $
+
+        mov ax, SelectFlatWR
+        mov ds, ax
+        mov es, ax
+        mov fs, ax
+        mov ss, ax
+        mov ax, SelectVideo
+        mov gs, ax
+
+        mov gs, ax
+        mov al, 'K'
+        mov ah, 0Ah
+        mov [gs:(80 * 19 + 25) * 2], ax
+
+        jmp $  
+```
+
+用xxd查看二进制数据
+
+```shell
+[root@localhost v3]# xxd -u -a -g 1 -c 16 bits-demo
+00000000: B8 03 00 B9 01 00 EB FE EB FE 00 00 00 00 00 00  ................
+00000010: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+00000020: EB FE EB FE EB FE EB FE 66 B8 0A 00 8E D8 8E C0  ........f.......
+00000030: 8E E0 8E D0 66 B8 0A 00 8E E8 8E E8 B0 4B B4 0A  ....f........K..
+00000040: 65 66 A3 12 0C 00 00 EB FE EB FE EB FE EB FE     ef.............
+```
+
+进入保护模式后，CPU在32位模式下，有66前缀的，表示这些机器指令码应该解释为16位的。没有66前缀的，就应该解释为32位的。
+
+```assembly
+; filename: bits-demo-16.asm
+; nasm -o bits-demo-16 bits-demo-16.asm
+mov ax, 3
+mov cx, 1
+jmp $
+jmp $
+
+SelectFlatWR    equ     $ - $$
+SelectVideo     equ     $ - $$
+
+[SECTION .s32]
+
+;ALIGN   32
+
+;[BITS   32]
+
+LABEL_PM_START:
+                                jmp $
+        jmp $
+        jmp $
+        jmp $
+
+        mov ax, SelectFlatWR
+        mov ds, ax
+        mov es, ax
+        mov fs, ax
+        mov ss, ax
+        mov ax, SelectVideo
+        mov gs, ax
+
+        mov gs, ax
+        mov al, 'K'
+        mov ah, 0Ah
+        mov [gs:(80 * 19 + 25) * 2], ax
+
+        jmp $  
+```
+
+
+
+查看二进制数据：
+
+```shell
+[root@localhost v3]# xxd -u -a -g 1 -c 16 bits-demo-16
+00000000: B8 03 00 B9 01 00 EB FE EB FE 00 00 EB FE EB FE  ................
+00000010: EB FE EB FE B8 0A 00 8E D8 8E C0 8E E0 8E D0 B8  ................
+00000020: 0A 00 8E E8 8E E8 B0 4B B4 0A 65 A3 12 0C EB FE  .......K..e.....
+```
+
+
+
+上面的三份代码，第一份是loader加载器中截取出来的，二进制数据是loader的。后面两份是把第一份代码提取出来后单独编译，二进制数据是单独编译的结果。共同点是：有`x66`前缀；多个`jmp $`相同。具体数据有差异。
+
+
+
+太不容易了，运行效果，截个图：
+
+![image-20210225012115385](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210225012115385.png)
+
+##### 资料
+
+# SeaBIOS实现简单分析
+
+SeaBIOS是一个16bit的x86 BIOS的开源实现，常用于QEMU等仿真器中使用。本文将结合[SeaBIOS Execution and code flow](https://www.seabios.org/Execution_and_code_flow)和[SeaBIOS的源码](https://github.com/coreboot/seabios/)对SeaBIOS的全过程进行简单分析。需要注意，本文不是深入的分析，对于一些比较复杂和繁琐的部分直接跳过了。
+
+https://doc.coreboot.org/
+
+OS 开发论坛：
+
+https://forum.osdev.org/viewforum.php?f=1&sid=65ed27036930773c125a8dd8eab714e4
+
+
+
+## 32位下段寄存器的组成图：（不考虑64位）
+
+![img](https://img2020.cnblogs.com/blog/1424296/202004/1424296-20200423111012366-212964709.png)
+
+分为4个部分
+
+- Selector  16位/可见
+- Attribute 16位/不可见
+- Limit  32位/不可见
+- Base 32位/不可见
+
+## 实模式寻址
+
+### 8086实模式寻址时：
+
+[![复制代码](https://common.cnblogs.com/images/copycode.gif)](javascript:void(0);)
+
+```
+mov cx,0x2000
+mov ds,cx
+mov [0xc0],al
+;以上，将段寄存器ds的值设置为0x2000，
+;然后向该段内偏移地址为0x00c0的地址写入al的值，
+;写入时，将ds的值左移4位，再加上0x00c0，即：0x200c0
+```
+
+[![复制代码](https://common.cnblogs.com/images/copycode.gif)](javascript:void(0);)
+
+### 32位实模式寻址不一样：
+
+```
+mov ax,cs
+mov ds,ax
+;第一句 ax=cs.Selector
+;第二句 先 ds.Selector=ax
+;然后 ds.Base=ds.Selector<<4，Base只用到了低20位。
+```
+
+32位环境下，当用汇编读取某一地址时：
+
+```
+mov dword ptr ds:[0x123456],eax
+;真正读写的地址是ds.base+0x123456
+```
+
+##  32位保护模式下寻址
+
+6个段寄存器ES CS DS SS FS GS叫做段选择器，和实模式不同，保护模式的内存访问有自己的方式，
+
+在保护模式下，尽管访问内存时也需要指定一个段，但传送到段选择器的内容不是逻辑段地址，而是段选择子。
+
+段选择子由三部分组成：
+
+![img](https://img2020.cnblogs.com/blog/1424296/202004/1424296-20200423130119143-1514219737.png)
+
+- 描述符索引——用来在描述符表中选择一个段描述符。
+- 描述符表指示器——TI=0时，在GDT表中；TI=1时，在LDT表中。
+- 请求特权级别——4个级别，0，1，2，3。
+
+例：
+
+```
+mov cx,00000000000_10_000B         ;加载数据段选择子(0x10)
+mov ds,cx
+;索引号  00000000000_10   2
+;TI  0  GDT
+;权限 00 最高权限
+```
+
+ 
+
+
+
+别人写操作系统，是跟着大学的实验做，我不知道有这种方法，只知道看书：
+
+
+
+# [ucore lab0 实验准备](https://www.cnblogs.com/whileskies/p/13138491.html)
+
+https://www.cnblogs.com/whileskies/p/13138491.html
+
+
+
+https://lm0963.github.io/blog/2018/05/01/%E8%BF%9B%E5%85%A5%E4%BF%9D%E6%8A%A4%E6%A8%A1%E5%BC%8F/
+
+
+
+
 
 ### 写内核
 
