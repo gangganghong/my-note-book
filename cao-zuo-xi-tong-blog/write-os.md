@@ -2878,7 +2878,7 @@ PUBLIC void cstart()
    u32* p_gdt_base  = (u32*)(&gdt_ptr[2]);
    ```
 
-   上面的代码已经对`p_gdt_limit`和`p_gdt_base`赋值了，下面的代码，我认为是重复的。
+   ~~上面的代码已经对`p_gdt_limit`和`p_gdt_base`赋值了，下面的代码，我认为是重复的。~~
 
    ```c
    *p_gdt_limit = GDT_SIZE * sizeof(DESCRIPTOR) - 1;
@@ -2888,6 +2888,40 @@ PUBLIC void cstart()
    `u32* p_gdt_base`存储GDT的内存地址，对指针赋值的语法是`*pointer = value`，所以，`*p_gdt_base  = (u32)&gdt;`。
 
    `u16* p_gdt_limit`存储的不是内存地址，而是GDT的长度-1，是一个数据。
+
+   这两段代码并不是重复赋值。先看这段代码
+
+   ```c
+   #include <stdio.h>
+   
+   int main(int argc, char **argv)
+   {
+           //int *a;
+           int b = 7;
+           int *a = (int *)(&b);
+           int c = 9;
+           *a = c;
+           printf("a = %p\n", a);
+           printf("*a = %d\n", *a);
+           printf("b = %d\n", b);
+   
+           return 0;
+   }
+   ```
+
+   执行结果
+
+   ```shell
+   [root@localhost c]# gcc -o point point.c -m32
+   [root@localhost c]# ./point
+   a = 0xfffe2814
+   *a = 9
+   b = 9
+   ```
+
+   注意，b的值是9，而不是7。为啥？指针变量a指向b。假设指针变量指向的内存地址是X，而X是变量b的内存地址。*a = c`将X中的数据修改为c的值，也就是将b的值修改为c。
+
+   GdtPtr的内存地址没有变化，但是却通过`*p_gdt_base  = (u32)&gdt;` 把GdtPtr的高32位地址修改成了变量gdt的内存地址。这就实现了切换GDT的功能。
 
 ##### 小结
 
