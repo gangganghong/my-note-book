@@ -2776,7 +2776,7 @@ _start:
 
 再次强调，遇到错误，不可无脑调试。昨天花了11个小时都没能解决问题。我没有那么多时间被浪费！
 
-##### 切换堆栈和GDT
+#### 切换堆栈和GDT
 
 进入保护模式后，GDT放在loader中。想在kernel中使用GDT，可以吗？在不同文件中（例如boot、loader、kernel)，复制到内存后，在不同的内存中片中，一个内存片中要使用另一个内存片中的变量，不行。即使，在不同文件中的变量名相同，这些相同的变量名到了内存中，内存地址不同。
 
@@ -2819,7 +2819,86 @@ u32* p_gdt_base  = (u32*)(&gdt_ptr[2]);
 
 对了，逻辑，我清楚了吧。把GDT的相关数据复制到新的GDT系列变量中。我可以按自己的方法实现这个目的，不一定非要去理解于上神的代码。
 
+##### 理解代码
 
+```c
+PUBLIC	void*	memcpy(void* pDst, void* pSrc, int iSize);
+
+PUBLIC	void	disp_str(char * pszInfo);
+
+PUBLIC	u8		gdt_ptr[6];	/* 0~15:Limit  16~47:Base */
+PUBLIC	DESCRIPTOR	gdt[GDT_SIZE];
+
+PUBLIC void cstart()
+{
+
+	disp_str("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+		 "-----\"cstart\" begins-----\n");
+
+	/* 将 LOADER 中的 GDT 复制到新的 GDT 中 */
+	memcpy(&gdt,				   /* New GDT */
+	       (void*)(*((u32*)(&gdt_ptr[2]))),    /* Base  of Old GDT */
+	       *((u16*)(&gdt_ptr[0])) + 1	   /* Limit of Old GDT */
+		);
+	/* gdt_ptr[6] 共 6 个字节：0~15:Limit  16~47:Base。用作 sgdt/lgdt 的参数。*/
+	u16* p_gdt_limit = (u16*)(&gdt_ptr[0]);
+	u32* p_gdt_base  = (u32*)(&gdt_ptr[2]);
+	*p_gdt_limit = GDT_SIZE * sizeof(DESCRIPTOR) - 1;
+	*p_gdt_base  = (u32)&gdt;
+}
+```
+
+`(void*)(*((u32*)(&gdt_ptr[2])))` 怎么理解？
+
+`(u32*)(&gdt_ptr[2])`构造一个`u32*`类型数据，`u32*`是强制进行数据类型转换。`*(u32*)(&gdt_ptr[2])`是获取一个`u32*`类型变量的值即`gdt_ptr[2]`的地址即`&gdt_ptr[2]`。`(void*)`是函数`PUBLIC	void*	memcpy(void* pDst, void* pSrc, int iSize);`对参数的数据类型要求。
+
+`*((u16*)(&gdt_ptr[0]))`等价于`(int*)*((u16*)(&gdt_ptr[0]))`。对它的理解与上面相同。经过测试，`int*`可有可无。
+
+这是从语法层面理解。从业务层面呢？
+
+1. `gdt_ptr`存储的GDT的物理位置，低16位是GDT的字节长度-1，高32位是GDT的物理地址（第一个元素的物理地址)。
+
+2. `&gdt_ptr[0]`
+
+   1. `&gdt_ptr[0]`是`gdt_ptr`的物理位置。gdt_ptr是有6个char元素的数组。它的内存地址(物理位置)是第一个元素内存地址。
+
+   2. `(u16 *)(&gdt_ptr[0])`创建一个指针变量，这个指针变量的值是`&gdt_ptr[0]`。把这个指针变量的值赋值给`u16* p_gdt_limit`。
+
+   3. `u16* p_gdt_limit = (u16*)(&gdt_ptr[0]);`的语法规则，可以用这段代码来理解：
+
+      ```c
+      int b = 7;
+      int *a = (int *)(&b);
+      ```
+
+3. 重复赋值。
+
+   ```c
+   u16* p_gdt_limit = (u16*)(&gdt_ptr[0]);
+   u32* p_gdt_base  = (u32*)(&gdt_ptr[2]);
+   ```
+
+   上面的代码已经对`p_gdt_limit`和`p_gdt_base`赋值了，下面的代码，我认为是重复的。
+
+   ```c
+   *p_gdt_limit = GDT_SIZE * sizeof(DESCRIPTOR) - 1;
+   *p_gdt_base  = (u32)&gdt;
+   ```
+
+   `u32* p_gdt_base`存储GDT的内存地址，对指针赋值的语法是`*pointer = value`，所以，`*p_gdt_base  = (u32)&gdt;`。
+
+   `u16* p_gdt_limit`存储的不是内存地址，而是GDT的长度-1，是一个数据。
+
+##### 小结
+
+花了4个小时理解这一小段代码。
+
+1. 理解GDT复制的业务逻辑。
+2. 这段C语言使用了复杂的指针，理解这些语法。
+3. 不理解代码中的重复赋值。我想验证它们是不是真的重复赋值了，所以，我使用bochs和GDB断点调试C代码。这又耗费了很多时间。这个时间本不应该浪费的，因为我以前使用过GDB调试。因没做好笔记或不知道笔记在哪里，只能重新摸索。
+4. 不理解为何到了内核要切换堆栈。直到现在，我仍然不理解。
+5. 理解本来以为没有疑问的细节，GdtPtr结构的低16位为啥设置为16位。
+6. 凌晨花3个多小时看过的“如何学习”的书，一点作用都没有发挥。笔记一定要记录好。
 
 ##### 资料
 
@@ -2919,8 +2998,6 @@ https://www.cnblogs.com/whileskies/p/13138491.html
 
 
 https://lm0963.github.io/blog/2018/05/01/%E8%BF%9B%E5%85%A5%E4%BF%9D%E6%8A%A4%E6%A8%A1%E5%BC%8F/
-
-
 
 
 
