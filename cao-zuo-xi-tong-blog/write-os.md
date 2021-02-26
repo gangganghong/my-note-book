@@ -1,5 +1,9 @@
 # 写操作系统的笔记
 
+## 选择子
+
+![image-20210227013635086](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210227013635086.png)
+
 
 
 ## bochs调试
@@ -1232,8 +1236,6 @@ g DWORD64
 2. 开启保护模式。
 3. 进入保护模式。
 4. 重新放置内核。
-
-
 
 最大的难点是，准备好GDT，更具体地说，是特权级(CPL、DPL、RPL)。
 
