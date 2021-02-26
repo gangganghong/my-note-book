@@ -2933,6 +2933,83 @@ PUBLIC void cstart()
 4. 不理解为何到了内核要切换堆栈。直到现在，我仍然不理解。
 5. 理解本来以为没有疑问的细节，GdtPtr结构的低16位为啥设置为16位。
 6. 凌晨花3个多小时看过的“如何学习”的书，一点作用都没有发挥。笔记一定要记录好。
+7. 为啥要在kernel中切换GDT，因为要在C语言中使用GDT，必须把GDT放到C语言的变量中。
+
+
+
+#### 中断
+
+/home/cg/yuyuan-os/osfs05/f
+
+在虚拟机的`/home/cg/yuyuan-os/osfs03/i`运行代码。
+
+###### 在bochs启动DOS
+
+配置文件 bochsrc
+
+```shell
+###############################################################
+# Configuration file for Bochs
+###############################################################
+
+# how much memory the emulated machine will have
+megs: 32
+
+# filename of ROM images
+romimage: file=/usr/local/share/bochs/BIOS-bochs-latest
+vgaromimage: file=/usr/local/share/bochs/VGABIOS-lgpl-latest
+
+# what disk images will be used
+floppya: 1_44=freedos.img, status=inserted
+floppyb: 1_44=pm.img, status=inserted
+
+# choose the boot disk.
+boot: a
+
+# where do we send log messages?
+# log: bochsout.txt
+
+# disable the mouse
+mouse: enabled=0
+
+# enable key mapping, using US layout as default.
+keyboard: keymap=/usr/local/share/bochs/keymaps/x11-pc-us.map
+```
+
+关键语句：
+
+```shell
+# what disk images will be used
+floppya: 1_44=freedos.img, status=inserted
+floppyb: 1_44=pm.img, status=inserted
+```
+
+文件
+
+```shell
+[root@localhost i]# tree
+.
+|-- Makefile
+|-- bochsrc
+|-- freedos.img
+|-- img-backup
+|   |-- freedos.img.gz
+|   `-- pm.img.gz
+|-- lib.inc
+|-- pm.img
+|-- pm.inc
+|-- pmtest9.asm
+|-- pmtest9.com
+|-- pmtest9a.asm
+|-- pmtest9b.asm
+`-- pmtest9c.asm
+```
+
+运行DOS需要的文件是`pm.img`和`freedos.img`。后者是下载的，前者是用bximage创建的虚拟软盘，就如同常使用的a.img一样。
+
+在虚拟机的命令行用`bochs -f bochsrc`启动虚拟机，正常的话，应该看到下面的界面
+
+![image-20210226185905241](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210226185905241.png)
 
 ##### 资料
 
