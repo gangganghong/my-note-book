@@ -2135,6 +2135,12 @@ MOVSX reg16, reg/mem8
 
 ![img](http://c.biancheng.net/uploads/allimg/190429/4-1Z4291K614217.gif)
 
+
+
+详情见：http://c.biancheng.net/view/3494.html
+
+
+
 # bochs调试程序断点问题
 
 最近看Orange's一个操作系统的实现，其中借用了Freedos的MBR把自己写的代码植入到内存中，但是bochs断下的地方都是在FreeDos的代码里，而我想断在自己的代码中，可以进行如下设置:

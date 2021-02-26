@@ -1,5 +1,238 @@
 # 写操作系统的笔记
 
+
+
+## bochs调试
+
+### bochs断点调试
+
+
+
+### bochs使用gdb断点调试
+
+#### 安装bocsh
+
+```shell
+./configure --prefix=/home/cg/tools/bochs-2.6.11 --enable-plugins   --enable-x86-64   --enable-cpp  --enable-disasm   --enable-gdb-stub --enable-x86-debugger --enable-e1000 
+make
+make install
+```
+
+Makefile
+
+```makefile
+##################################################
+# Makefile
+##################################################
+
+BOOT:=boot.asm
+LDR:=loader.asm
+KERNEL:=kernel.asm
+BOOT_BIN:=$(subst .asm,.bin,$(BOOT))
+LDR_BIN:=$(subst .asm,.bin,$(LDR))
+KERNEL_BIN:=$(subst .asm,.bin,$(KERNEL))
+
+IMG:=a.img
+FLOPPY:=/mnt/floppy/
+
+.PHONY : everything
+
+everything : $(BOOT_BIN) $(LDR_BIN) $(KERNEL_BIN)
+        # ld -s -Ttext 0x30400 -o kernel.bin kernel.o string.o start.o kliba.o -m elf_i386
+        ld -Ttext 0x30400 -o kernel.bin kernel.o string.o start.o kliba.o -m elf_i386
+        dd if=$(BOOT_BIN) of=$(IMG) bs=512 count=1 conv=notrunc
+        sudo mount -o loop $(IMG) $(FLOPPY)
+        sudo cp $(LDR_BIN) $(FLOPPY) -v
+        sudo cp $(KERNEL_BIN) $(FLOPPY) -v
+        sudo umount $(FLOPPY)
+
+clean :
+        rm -f $(BOOT_BIN) $(LDR_BIN) $(KERNEL_BIN) *.o
+
+$(BOOT_BIN) : $(BOOT)
+        nasm $< -o $@
+
+$(LDR_BIN) : $(LDR)
+
+$(KERNEL_BIN) : $(KERNEL) start.c string.asm
+        nasm -f elf -o $(subst .asm,.o,$(KERNEL)) $<
+        nasm -f elf -o string.o string.asm
+        nasm -f elf -o kliba.o kliba.asm
+        gcc -c -fno-builtin -o start.o start.c -g -m32
+```
+
+关键语句：
+
+```makefile
+# ld 去掉 -s，gcc 加上 -g，编译出来的文件才包含调试信息
+ld -Ttext 0x30400 -o kernel.bin kernel.o string.o start.o kliba.o -m elf_i386
+gcc -c -fno-builtin -o start.o start.c -g -m32
+```
+
+
+
+bochsrc
+
+```
+###############################################################
+# Configuration file for Bochs
+###############################################################
+
+# how much memory the emulated machine will have
+megs: 32
+
+# filename of ROM images
+romimage: file=/usr/local/share/bochs/BIOS-bochs-latest
+vgaromimage: file=/usr/local/share/bochs/VGABIOS-lgpl-latest
+
+# what disk images will be used
+# floppya: 1_44=freedos.img, status=inserted
+# floppyb: 1_44=pm.img, status=inserted
+floppya: 1_44="a.img", status=inserted
+
+# choose the boot disk.
+boot: a
+# boot: floppy
+# where do we send log messages?
+log: bochsout.txt
+
+# disable the mouse
+mouse: enabled=0
+#magic_break:enabled=1
+
+gdbstub: enabled=1, port=1234, text_base=0, data_base=0, bss_base=0
+# enable key mapping, using US layout as default.
+
+keyboard: keymap=/usr/local/share/bochs/keymaps/x11-pc-us.map
+
+# magic_break:enable=1
+```
+
+在C文件中设置断点
+
+```c
+
+```
+
+报错
+
+```shell
+start.c: In function 'cstart':
+start.c:27:24: error: expected declaration specifiers or '...' before '&' token
+         (void *((u32*)(&gdt_ptr[2]))),    /* Base  of Old GDT */
+```
+
+
+
+调试信息
+
+```shell
+(gdb) p p_gdt_base
+$16 = (u32 *) 0x32c22 <gdt_ptr+2>
+(gdb) p &gdt
+$17 = (DESCRIPTOR (*)[128]) 0x32820 <gdt>
+(gdb) p gdt_ptr
+$18 = "\377\003 (\003"
+(gdb) p *gdt_ptr
+$19 = 255 '\377'
+(gdb) p &gdt_ptr
+$20 = (u8 (*)[6]) 0x32c20 <gdt_ptr>
+(gdb) x /1nx
+Argument required (starting display address).
+(gdb) x /1nx 0x32c20
+0x32c20 <gdt_ptr>:	0x282003ff
+(gdb) p &gdt_ptr[2]
+$21 = (u8 *) 0x32c22 <gdt_ptr+2> " (\003"
+(gdb) x /1wx 0x32c22
+0x32c22 <gdt_ptr+2>:	0x00032820
+(gdb) p p_gdt_base
+$22 = (u32 *) 0x32c22 <gdt_ptr+2>
+```
+
+#### 启动调试
+
+按上面的配置，然后按下面的方式启动调试：
+
+1. 在虚拟机上的命令行工具执行命令`/home/cg/tools/bochs-2.6.11/bin/bochs -f bochsrc-gdb `，如下下图
+
+   1. ![image-20210226162722000](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210226162722000.png)
+   2. ![image-20210226162647280](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210226162647280.png)
+
+   3. ![image-20210226162802405](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210226162802405.png)
+
+2. 在物理机的命令行工具执行下面的命令：
+
+   1. ```shell
+      [root@localhost f]# gdb ./kernel.bin
+      # 用gdb在文件start.c的第31行设置断点
+      (gdb) b start.c:31
+      Breakpoint 1 at 0x30496: file start.c, line 31.
+      # 连接到本地的bochs，1234是在bochsrc中配置的
+      (gdb) target remote localhost:1234
+      Remote debugging using localhost:1234
+      0x0000fff0 in ?? ()
+      # 执行到下一个断点
+      (gdb) c
+      Continuing.
+      
+      Breakpoint 1, cstart () at start.c:31
+      31		u16* p_gdt_limit = (u16*)(&gdt_ptr[0]);
+      # 打印变量gdt_ptr
+      (gdb) p gdt_ptr
+      $1 = "\037\000=\001\t"
+      # 打印变量gdt_ptr的内存地址
+      (gdb) p &gdt_ptr
+      $2 = (u8 (*)[6]) 0x32c20 <gdt_ptr>
+      # 执行下一条语句
+      (gdb) s
+      32		u32* p_gdt_base  = (u32*)(&gdt_ptr[2]);
+      (gdb) p p_gdt_limit
+      $3 = (u16 *) 0x32c20 <gdt_ptr>
+      (gdb) s
+      33		*p_gdt_limit = GDT_SIZE * sizeof(DESCRIPTOR) - 1;
+      (gdb) p p_gdt_base
+      $4 = (u32 *) 0x32c22 <gdt_ptr+2>
+      (gdb) p &gdt_ptr[2]
+      $5 = (u8 *) 0x32c22 <gdt_ptr+2> "=\001\t"
+      (gdb) s
+      34		*p_gdt_base  = (u32)&gdt;
+      (gdb) s
+      35	}
+      (gdb) p p_gdt_limit
+      $6 = (u16 *) 0x32c20 <gdt_ptr>
+      (gdb) p p_gdt_base
+      $7 = (u32 *) 0x32c22 <gdt_ptr+2>
+      (gdb) p &gdt
+      $8 = (DESCRIPTOR (*)[128]) 0x32820 <gdt>
+      # 查看内存地址0x32c22中的数据
+      (gdb) x /1wx 0x32c22
+      0x32c22 <gdt_ptr+2>:	0x00032820
+      ```
+
+#### gdb查看内存
+
+用gdb查看内存
+格式: x /nfu
+
+参数说明：
+x 是 examine 的缩写
+n表示要显示的内存单元的个数
+f表示显示方式, 可取如下值
+x 按十六进制格式显示变量。
+d 按十进制格式显示变量。
+u 按十进制格式显示无符号整型。
+o 按八进制格式显示变量。
+t 按二进制格式显示变量。
+a 按十六进制格式显示变量。
+i 指令地址格式
+c 按字符格式显示变量。
+f 按浮点数格式显示变量。
+u表示一个地址单元的长度
+b表示单字节，
+h表示双字节，
+w表示四字节，
+g表示八字节
+
 ## 写loader
 
 loader要完成的工作：准备好GDT、进入保护模式、读取内核文件到内存、将内核重新放置到内存中。
@@ -2401,7 +2634,190 @@ xp /1wx 0x0010:0x30000
 xp /1wx 0x0010:0x30400
 ```
 
+### v5-loader
 
+这个版本实现：
+
+1. 内核使用C语言和汇编混合编程。暂时无法完成。
+2. 把立即数用变量名替换
+
+#### C和汇编混合
+
+怎么混合？
+
+bar.c是C语言写的源码文件，foo.asm是汇编写的源码文件。在foo.asm中使用bar.c中创建的函数，在bar.c中使用foo.asm提供的函数。
+
+foo.asm创建的函数用`global`导出，使用bar.c中创建的函数前使用`extern`导入。
+
+```assembly
+extern choose
+
+[section .data]
+
+GreaterNumber	equ	51
+SmallerNumber equ	23
+
+[section .text]
+
+global _start
+global _displayStr
+
+_start:
+	push	GreaterNumber
+	push	SmallerNumber
+	call choose
+	add [esp+8]	; 人工清除参数占用的栈空间
+	
+	; 必须调用 exit，否则会出现错提示，程序能运行。
+	mov eax, 1
+	mov ebx, 0
+	int 0x80
+	
+	ret
+	
+; _displayStr(char *str, int len)	
+_displayStr:
+	mov eax, 4
+	mov ebx, 1
+	; 按照C函数调用规则，最后一个参数最先入栈，它在栈中的地址最大。
+	mov ecx, [ebp + 4]		; str
+	mov edx, [ebp + 8]		; len。ebp + 0 是 cs:ip中的ip
+	int 0x80
+	
+	ret	; 一定不能少
+```
+
+
+
+```c
+void choose(int a, int b)
+{
+  if(a > b){
+    // 哪些函数能用，哪些函数不能用，不清楚。用C语言写代码，仍受束缚啊。
+    // 比如，我想把a和字符串混合起来。在PHP中直接用点号就能连接起来。
+    _displayStr("first", 5);
+  }else{
+    _displayStr("second", 6);
+  }
+  
+  return;
+}
+```
+
+
+
+怎么编译？
+
+```shell
+nasm -f elf foo.o foo.asm
+gcc -o bar.o bar.c -m32
+ld -s -o kernel.bin foo.o bar.o -m elf_i386
+```
+
+
+
+上面的代码经过编译后，能运行。但是作为操作系统内核，不能运行。
+
+
+
+
+
+要在目前的内核中运行用使用了系统调用的代码，似乎不行。
+
+```assembly
+[section .data]
+Str:    db      "Hello,World"
+Len     equ     $ - Str
+
+[section .text]
+
+global _start
+
+_start:
+        mov eax, 4
+        mov ebx, 1
+        mov ecx, Str
+        mov edx, Len
+        int 0x80
+
+        mov eax, 1
+        mov ebx, 0
+        int 0x80
+
+        ret
+```
+
+
+
+单独编译后能运行，作为操作系统内核，不能运行，出现下面的报错信息：
+
+```shell
+268 00014033826i[BIOS  ] Booting from 0000:7c00
+269 00014812264e[CPU0  ] interrupt(): vector must be within IDT table limits, IDT.limit = 0x3ff
+270 00014812264e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x0d)
+271 00014812264e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x08)
+272 00014812264i[CPU0  ] CPU is in protected mode (active)
+273 00014812264i[CPU0  ] CS.mode = 32 bit
+274 00014812264i[CPU0  ] SS.mode = 32 bit
+275 00014812264i[CPU0  ] EFER   = 0x00000000
+276 00014812264i[CPU0  ] | EAX=00000004  EBX=00000001  ECX=00031424  EDX=0000000b
+277 00014812264i[CPU0  ] | ESP=0000ffce  EBP=00000000  ESI=000e007c  EDI=0000007a
+278 00014812264i[CPU0  ] | IOPL=0 id vip vif ac vm RF nt of df if tf sf ZF af PF cf
+279 00014812264i[CPU0  ] | SEG sltr(index|ti|rpl)     base    limit G D
+280 00014812264i[CPU0  ] |  CS:0008( 0001| 0|  0) 00000000 ffffffff 1 1
+281 00014812264i[CPU0  ] |  DS:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+282 00014812264i[CPU0  ] |  SS:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+283 00014812264i[CPU0  ] |  ES:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+284 00014812264i[CPU0  ] |  FS:0010( 0002| 0|  0) 00000000 ffffffff 1 1
+285 00014812264i[CPU0  ] |  GS:001b( 0003| 0|  3) 000b8000 0000ffff 0 0
+```
+
+试图用C和汇编混合编写内核，无业务逻辑，纯语法，就浪费了2个小时。调试仍然低效。似乎不能使用`xchg bx, bx`断点。
+
+再次强调，遇到错误，不可无脑调试。昨天花了11个小时都没能解决问题。我没有那么多时间被浪费！
+
+##### 切换堆栈和GDT
+
+进入保护模式后，GDT放在loader中。想在kernel中使用GDT，可以吗？在不同文件中（例如boot、loader、kernel)，复制到内存后，在不同的内存中片中，一个内存片中要使用另一个内存片中的变量，不行。即使，在不同文件中的变量名相同，这些相同的变量名到了内存中，内存地址不同。
+
+上面的解释，比较混乱。
+
+在loader中，能获取GdtPtr的内存地址（段选择子：偏移量）。
+
+仍然比较混乱。
+
+总之，我不明白，在内核中为啥需要重新获取GDT。
+
+能够在内核中重新获取GDT，但是比较繁琐，需要计算。切换GDT，就是只计算一次、把计算结果保存起来。对，就这么理解。
+
+从GDT的基地址P开始，X个字节的数据，都是GDT。所以，复制GDT的方法是：从P开始，把X个字节复制到内存地址N开始的内存。X是多少？它就是lgdt寄存器中的数据的低16位。X不是32位吗？X是8的整数倍。这个理解似乎无用。这么想吧。GDT中的元素一共有X/8个。GDT中每个相邻的元素的内存地址的差值是8（单位是字节），相差8个字节，是64位。
+
+GDT的长度是X，最后一个描述符在GDT中的索引是X/8 - 1，GdtPtr的界限是指GDT的长度-1。
+
+所谓界限，就是GDT的长度减去1；GDT的长度就是界限 + 1，因为，要把初始点也包括在内（不对，因为初始点的值被设置为0），那么，索引1是第2个，索引2是第3个。不能用索引。这种细节理解起来，我感觉比较麻烦和纠结。一共有X个字节，第1个字节是第0个，第X个字节是多少个？第X-1个。用举例法就能知道这个结论。第1个字节是第0个，第2个字节是第1个，第3个字节是第2个。
+
+为啥只用16位来表示GDT的长度？16位能表示多少个描述符？16位能表示的最大数是2的16次方-1。段界限的最大值是2的16次方-1。
+
+段界限的最大值 = 2的16次方 - 1。GDT的长度 = 段界限的最大值 + 1。GDT的长度 = 2的16次方。
+
+2的16次方字节/8 = 2的13次方 = 8192。操作系统最多能有8192个字节。为啥？规定吧。8192个字节，够用了吧。
+
+理解这么简单的东西，花了大概40分钟。初衷不是为了理解这个东西。
+
+复制GDT，从GDT的开始位置，复制GDT的长度个字节，这就是复制GDT。
+
+GdtPtr的基地址和界限，很容易获取。然而，获取它们之后，为啥又要重新给二者赋值呢？
+
+```c
+u16* p_gdt_limit = (u16*)(&gdt_ptr[0]);
+u32* p_gdt_base  = (u32*)(&gdt_ptr[2]);
+*p_gdt_limit = GDT_SIZE * sizeof(DESCRIPTOR) - 1;
+*p_gdt_base  = (u32)&gdt;
+```
+
+重复赋值，是因为二者的内容不同吗？理解不了这里，是C语言基础差？没有其他办法，断点调试观察数据吧。
+
+对了，逻辑，我清楚了吧。把GDT的相关数据复制到新的GDT系列变量中。我可以按自己的方法实现这个目的，不一定非要去理解于上神的代码。
 
 
 
