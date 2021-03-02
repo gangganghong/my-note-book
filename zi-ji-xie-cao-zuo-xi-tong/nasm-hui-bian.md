@@ -2139,7 +2139,17 @@ MOVSX reg16, reg/mem8
 
 详情见：http://c.biancheng.net/view/3494.html
 
+### LIDT
 
+把内存中的IDTR结构复制到IDTR寄存器中。
+
+该指令只能在0特权级运行。
+
+类似`lgdt`。
+
+### SIDT
+
+该指令把IDTR寄存器中的数据复制到内存地址是IDTR的内存中。这个指令能运行在任意特权级。
 
 # bochs调试程序断点问题
 
