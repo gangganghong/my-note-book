@@ -68,12 +68,14 @@ SpuriousHandler	equ	_SpuriousHandler - $$
 	mov al, 'A'
 	mov ah, 0Fh
 	mov [gs:(80*20+20)*2], ax
+	ireted
 	
 _UserIntHandler:
 UserIntHandler	equ	_UserIntHandler - $$
 	mov al, 'A'
 	mov ah, 0Fh
 	mov [gs:(80*20+20)*2], ax
+	iretd
 ```
 
 上面的代码和`IDT`在同一代码段code32。`SpuriousHandler`、`UserIntHandler`是code32内的两个偏移量。
@@ -135,16 +137,21 @@ SpuriousHandler	equ	_SpuriousHandler - $$
 	mov al, 'A'
 	mov ah, 0Fh
 	mov [gs:(80*20+20)*2], ax
+	iretd
 	
 _UserIntHandler:
 UserIntHandler	equ	_UserIntHandler - $$
 	mov al, 'A'
 	mov ah, 0Fh
 	mov [gs:(80*20+20)*2], ax
+	iretd
   
 _ClockIntHandler:
 ClockIntHandler	equ	_ClockIntHandler - $$
 	inc [gs:(80*20+20)*2]
+	mov al, 20h
+	out 20h, al
+	iretd
 	
 int 80h
 ;在死循环中，时钟中断会以一定的时间间隔发生。
@@ -152,3 +159,60 @@ jmp $
 ```
 
 `[gs:(80*20+20)*2]`这块内存已经有数据了，`inc [gs:(80*20+20)*2]`会增加这块内存中的数据的值，效果是在屏幕上出现不断变换的字母。
+
+## 中断或异常发生时堆栈的变化
+
+没有特权级转移的中断，只涉及被中断过程的堆栈，并且堆栈中没有`ss、esp`。
+
+有特权级转移的中断，涉及被中断过程的堆栈和中断例程的堆栈，但是`ss、esp`等都存储在中断例程的堆栈中。
+
+从中断或异常返回时必须使用`iretd`。这与下文使用`iret`矛盾啊。
+
+`iretd`执行时，`Error Code`不会自动从堆栈中清除，这意味着必须手工从堆栈中清除`iretd`。
+
+中断或异常不会总是产生`Error Code`。
+
+### 疑问
+
+在下面的堆栈示意图中，使用`iretd`，会依次出栈除`Error Code`外的其他元素吧？
+
+### 没有特权级转移
+
+|                         |   高地址   |                       |
+| ----------------------: | :--------: | --------------------- |
+| 中断发生前esp---------> |            |                       |
+|                         |   eflags   |                       |
+|                         |     cs     | <----------------堆栈 |
+|                         |    eip     |                       |
+| 中断发生后esp---------> | Error Code |                       |
+|                         |   低地址   |                       |
+
+### 有特权级转移
+
+被中断过程的堆栈
+
+|                             | 高地址 |                       |
+| --------------------------: | :----: | --------------------- |
+| 中断之前的esp-------------> |        |                       |
+|                             |        |                       |
+|                             |        | <----------------堆栈 |
+|                             |        |                       |
+|                             | 低地址 |                       |
+
+中断例程的堆栈
+
+|                                   |   高地址   |                       |
+| --------------------------------: | :--------: | --------------------- |
+|                                   |     ss     |                       |
+|                                   |    esp     |                       |
+|                                   |   eflags   |                       |
+|                                   |     cs     | <----------------堆栈 |
+|                                   |    eip     |                       |
+| 进入中断例程后的esp-------------> | Error Code |                       |
+|                                   |   低地址   |                       |
+
+## 中断或异常的区别
+
+中断会复位`IF`位，防止中断过程中再产生中断，在中断例程结束时通过`iret`恢复`IF`的值。
+
+异常 不会修改`IF`位。
