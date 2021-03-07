@@ -465,3 +465,97 @@ hwint00:		; Interrupt routine for irq 0 (the clock).
 4. 最后使用iretd出栈`eip、cs、eflags、esp、ss`。
    1. `eip、cs、eflags、esp、ss`是`call`入栈的，顺序是``eip、cs、eflags、esp、ss`的倒序。
 
+## hwint00
+
+```assembly
+ALIGN	16
+hwint00:		; Interrupt routine for irq 0 (the clock).
+	sub	esp, 4
+	pushad		; `.
+	push	ds	;  |
+	push	es	;  | 保存原寄存器值
+	push	fs	;  |
+	push	gs	; /
+	mov	dx, ss
+	mov	ds, dx
+	mov	es, dx
+
+	inc	byte [gs:0]		; 改变屏幕第 0 行, 第 0 列的字符
+
+	mov	al, EOI			; `. reenable
+	out	INT_M_CTL, al		; /  master 8259
+
+	inc	dword [k_reenter]
+	cmp	dword [k_reenter], 0
+	jne	.1	; 重入时跳到.1，通常情况下顺序执行
+	;jne	.re_enter
+	
+	mov	esp, StackTop		; 切到内核栈
+
+	push	.restart_v2
+	jmp	.2
+.1:					; 中断重入
+	push	.restart_reenter_v2
+.2:					; 没有中断重入
+	sti
+	
+	push	0					
+	call	clock_handler
+	add	esp, 4
+	
+	cli
+
+	ret	; 重入时跳到.restart_reenter_v2，通常情况下到.restart_v2
+
+.restart_v2:
+	mov	esp, [p_proc_ready]	; 离开内核栈
+	lldt	[esp + P_LDT_SEL]
+	lea	eax, [esp + P_STACKTOP]
+	mov	dword [tss + TSS3_S_SP0], eax
+
+.restart_reenter_v2:			; 如果(k_reenter != 0)，会跳转到这里
+;.re_enter:	; 如果(k_reenter != 0)，会跳转到这里
+	dec	dword [k_reenter]
+	pop	gs	; `.
+	pop	fs	;  |
+	pop	es	;  | 恢复原寄存器值
+	pop	ds	;  |
+	popad		; /
+	add	esp, 4
+
+	iretd
+```
+
+```assembly
+cmp	dword [k_reenter], 0
+	jne	.1	; 重入时跳到.1，通常情况下顺序执行
+	;jne	.re_enter
+	
+	mov	esp, StackTop		; 切到内核栈
+
+	push	.restart_v2
+	jmp	.2
+.1:					; 中断重入
+	push	.restart_reenter_v2
+.2:					; 没有中断重入
+	sti
+	
+	push	0					
+	call	clock_handler
+	add	esp, 4
+	
+	cli
+
+	ret	; 重入时跳到.restart_reenter_v2，通常情况下到.restart_v2
+```
+
+理解这段的执行流程，颇为费时。
+
+```assembly
+mov	esp, StackTop		; 切到内核栈
+
+push	.restart_v2
+```
+
+把`restart_v2`压入内核栈。
+
