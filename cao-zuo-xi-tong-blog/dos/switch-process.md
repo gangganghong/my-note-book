@@ -260,3 +260,33 @@ restart_reenter:
             2. 比9小，什么也不做。
          4. 把`newCh`拼接到`str`。
 6. `str`就是最终结果：由`num`转换成的十六进制数。
+
+# 计算机在线课程
+
+作者：haoxiang lin
+链接：https://www.zhihu.com/question/29224038/answer/93653123
+来源：知乎
+著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
+
+
+
+Update：
+鉴于很多人问没有视频怎么破=。=这里再推荐一个清华贵系的OS课
+[操作系统-学堂在线慕课(MOOC)平台](https://link.zhihu.com/?target=http%3A//www.xuetangx.com/courses/course-v1%3ATsinghuaX%2B30240243X_tv%2B2015_T1/about)
+这个就有完整视频讲解，包括所有的lab，lab做完后也是自己完成了一个ucore os，而且文档都是中文的，觉得MIT的wiki看不懂的就上上这个吧=。=不过这门课当然是没有6.828的完整了，建议两个结合着来，看THU的视频，然后把6.828的paper，note看完，lab的话可以做完ucore的可以再参考下xv6的实现。
+
+至于数据库和分布式的课，我觉得完全不需要视频。。。。
+
+=========================分割线=========================================
+
+MIT 6.828 经典的OS的神课，所有的lab，note和timeline在主页里都有，跟完课程就自己写完了一个简单的OS，大名鼎鼎的xv6,jos
+
+[6.828 / Fall 2014](https://link.zhihu.com/?target=https%3A//pdos.csail.mit.edu/6.828/2014/schedule.html)
+
+MIT 6.830 经典的数据库的课，所有的lab，note，还有需要读的paper，跟完就自己写了一个RDBMS
+
+[6.830/6.814: Database Systems](https://link.zhihu.com/?target=http%3A//db.csail.mit.edu/6.830/)
+
+MIT 6.824 经典的分布式系统的课，同样，跟完就自己完成一个Golang实现的分布式K/V databases
+
+[6.824 Schedule: Spring 2015](https://link.zhihu.com/?target=http%3A//nil.csail.mit.edu/6.824/2015/schedule.html)
