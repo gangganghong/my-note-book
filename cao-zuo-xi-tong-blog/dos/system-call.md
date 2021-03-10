@@ -95,3 +95,49 @@ int main(int argc, char **)
 4. `[sys_call_handler]`是数组`sys_call_handler`的第一个元素`create`，`call	[sys_call_handler]`   变成 `call create`。
 5. `call  create`会创建一个文件，并将文件句柄存储在堆栈中属于`eax`的那个位置。
 6. 回到`createFile`时，堆栈中`eax`的那个位置仍然存储着文件句柄。这意味着，`createFile`的返回值是操作系统创建的文件的文件句柄。
+
+![image-20210310124336423](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/dos/image-20210310124336423.png)
+
+![image-20210310130028275](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/dos/image-20210310130028275.png)
+
+
+
+![image-20210310130543957](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/dos/image-20210310130543957.png)
+
+
+
+![image-20210310134706110](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/dos/image-20210310134706110.png)
+
+
+
+![image-20210310141629463](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/dos/image-20210310141629463.png)
+
+
+
+XP /1WX 0X0010:0X0x0004c5a0
+
+确定无疑：
+
+进程A先运行，执行完restart的iretd后，立刻发生时钟中断。
+
+我非常不理解，为啥没有执行进程A的一条语句就先发送了时钟中断？而且，每次运行都是如此。
+
+因为，前面执行了许多次语句，执行完iretd后，刚好发送了时钟中断。
+
+进程A运行--》时钟中断---》进程B运行--delay。
+
+每个进程运行30个时钟中断。3个进程全部运行完需要消耗90个时钟中断。
+
+理解为啥进程越多，每个进程运行的次数越多的关键是：
+
+进程中的`delay`获取的时钟中断次数，是公用的。当两个时间点的时钟中断次数相差20时，每个进程中的`delay`都会结束。
+
+在90个时钟中断时长中，每20个时钟中断时长会让三个进程完成各种进程中的循环。每20次个时钟中断，3个进程都会完成一次执行。
+
+我是在一两秒钟内突然想到了这一点。这根本没有什么专业知识，只是我自己的思维定势，理解不了。
+
+根本不需模拟代码执行。
+
+再说了，模拟代码执行，不知道对错，模拟了也没有用。
+
+多进程的运行，不一定能用我已有的经验去判断。最好的方式，是直接去运行。

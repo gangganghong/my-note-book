@@ -290,3 +290,4 @@ MIT 6.830 经典的数据库的课，所有的lab，note，还有需要读的pap
 MIT 6.824 经典的分布式系统的课，同样，跟完就自己完成一个Golang实现的分布式K/V databases
 
 [6.824 Schedule: Spring 2015](https://link.zhihu.com/?target=http%3A//nil.csail.mit.edu/6.824/2015/schedule.html)
+
