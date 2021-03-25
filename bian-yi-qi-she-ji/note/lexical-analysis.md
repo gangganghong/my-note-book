@@ -87,6 +87,230 @@ void match(int t){
 }
 ```
 
+## 疑问
+
+用中缀表达式为例子。
+
+一个中缀表达式，用抽象语法树表示出来，记作A。
+
+和这个中缀表达式等价的后缀表达式，用抽象语法树表示出来，记作B。
+
+用代码实现B。
+
+A变为B，是怎么做到的？目前，我是人工计算出结果，直接写出B。
+
+A是输入代码的抽象语法树，是需要解析的对象。
+
+A变成B，肯定不能通过人工计算，而是需要用代码实现。理由很简单。要解析一段代码，不能先人工把它转换成等价的另一种形式，然后再用代码来解析另一种形式。
+
+后缀表达式，不是最终形式，最终结果是一颗抽象语法树。
+
+A怎么变成B？
+
+## 符号表
+
+```c
+int a;int b;bool c;
+```
+
+符号表：
+
+```c
+{a:int},{b:int},{c:boo}
+```
+
+符号表，就是一个哈希表，这个哈希表中的元素是键值对，键是变量名，值是变量的数据类型。
+
+符号表会反映变量的作用域。怎么反映的？
+
+每一块程序都有一个对应的符号表。
+
+符号表是数据结构，这个数据保存源代码的各种信息。
+
+从符号表，能获得源代码的各种信息，甚至，能根据符号表还原源代码。
+
+符号存储在栈中或散列表中。
+
+嵌套块，栈的当前元素是当前块的符号表。栈的下一个元素，存储当前块的父块。
+
+不理解怎么使用这个存储符号表的栈。
+
+![image-20210316164402709](/Users/cg/Documents/gitbook/my-note-book/bian-yi-qi-she-ji/note/image-20210316164402709.png)
+
+怎么看这个图？这个图画得非常不好，不看注释，很难正确理解。
+
+第二列折行，是因为写不下，正常的应该是下面这样的，只举一个例子：
+
+```c
+block		--->		{ saved = top; top = new Env(top); print("{}");	}	
+								'{'decls stmts'}'		
+                { top = saved; print("} "); }
+```
+
+怎么实现作用域呢？
+
+1. 在进入程序块之前，把`top`存储在`saved`中。`top`是上一个程序块中的符号表。
+2. 创建一个新符号表，作为当前程序块的符号表，并存储在`top`中。在当前程序块中，都可以从`top`中获取符号表。
+3. 离开当前程序块之前，从`saved`中获取上一个程序块的符号表，并且存储到`top`中。
+
+## 中间代码
+
+抽象语法树（可能不准确）和三目运算符，都是中间代码。
+
+从前面的翻译表达式生成抽象语法树，就在这个小节。
+
+概念很混乱。
+
+翻译表达式是什么？
+
+抽象语法树又是什么？
+
+不清楚这些概念也不是大问题，看到一个表达式，能指出是抽象表达式还是翻译表达式，就足够了。
+
+然而，不能说出教科书定义或用自己的语言说出定义，就无法向别人证明自己懂这个东西。
+
+## 语法分析
+
+![image-20210317111146995](/Users/cg/Documents/gitbook/my-note-book/bian-yi-qi-she-ji/note/image-20210317111146995.png)
+
+
+
+
+
+![image-20210317111219678](/Users/cg/Documents/gitbook/my-note-book/bian-yi-qi-she-ji/note/image-20210317111219678.png)![image-20210317111219771](/Users/cg/Documents/gitbook/my-note-book/bian-yi-qi-she-ji/note/image-20210317111219771.png)
+
+
+
+![image-20210317175527930](/Users/cg/Documents/gitbook/my-note-book/bian-yi-qi-she-ji/note/image-20210317175527930.png)
+
+
+
+
+
+![image-20210317175605619](/Users/cg/Documents/gitbook/my-note-book/bian-yi-qi-she-ji/note/image-20210317175605619.png)
+
+
+
+![image-20210317183338523](/Users/cg/Documents/gitbook/my-note-book/bian-yi-qi-she-ji/note/image-20210317183338523.png)	
+
+## golang 编译过程
+
+file /usr/lib/golang/pkg/tool/linux_amd64/link
+/usr/lib/golang/pkg/tool/linux_amd64/link: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, not stripped
+
+```shell
+[root@localhost code]# go run -x println.go > println-run.log
+WORK=/tmp/go-build215017891
+mkdir -p $WORK/b001/
+cat >$WORK/b001/importcfg << 'EOF' # internal
+# import config
+packagefile runtime=/usr/lib/golang/pkg/linux_amd64/runtime.a
+EOF
+cd /home/cg/code
+/usr/lib/golang/pkg/tool/linux_amd64/compile -o $WORK/b001/_pkg_.a -trimpath "$WORK/b001=>" -p main -complete -buildid qyAdWfxP1x7okpm7mIlT/qyAdWfxP1x7okpm7mIlT -dwarf=false -goversion go1.14.7 -D _/home/cg/code -importcfg $WORK/b001/importcfg -pack -c=2 ./println.go
+/usr/lib/golang/pkg/tool/linux_amd64/buildid -w $WORK/b001/_pkg_.a # internal
+cp $WORK/b001/_pkg_.a /root/.cache/go-build/a6/a67c60514779d94d011a93b68e26c5437235f1a264e67db58fe54fdf265c9db4-d # internal
+cat >$WORK/b001/importcfg.link << 'EOF' # internal
+packagefile command-line-arguments=$WORK/b001/_pkg_.a
+packagefile runtime=/usr/lib/golang/pkg/linux_amd64/runtime.a
+packagefile internal/bytealg=/usr/lib/golang/pkg/linux_amd64/internal/bytealg.a
+packagefile internal/cpu=/usr/lib/golang/pkg/linux_amd64/internal/cpu.a
+packagefile runtime/internal/atomic=/usr/lib/golang/pkg/linux_amd64/runtime/internal/atomic.a
+packagefile runtime/internal/math=/usr/lib/golang/pkg/linux_amd64/runtime/internal/math.a
+packagefile runtime/internal/sys=/usr/lib/golang/pkg/linux_amd64/runtime/internal/sys.a
+EOF
+mkdir -p $WORK/b001/exe/
+cd .
+/usr/lib/golang/pkg/tool/linux_amd64/link -o $WORK/b001/exe/println -importcfg $WORK/b001/importcfg.link -s -w -buildmode=exe -buildid=u-qCTeFd7HuAjNI4BIuJ/qyAdWfxP1x7okpm7mIlT/9zPagCUSSVC6tgbcSgN3/u-qCTeFd7HuAjNI4BIuJ -extld=gcc $WORK/b001/_pkg_.a
+$WORK/b001/exe/println
+helloworld
+```
+
+
+
+```shell
+[root@localhost code]# file /usr/lib/golang/pkg/tool/linux_amd64/compile
+/usr/lib/golang/pkg/tool/linux_amd64/compile: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, not stripped
+```
+
+
+
+现代编译器原理一般不包括实现汇编器。我要写的golang编译器，只需完成词法分析、语法分析、生成汇编代码、编译、链接。
+
+```shell
+[root@localhost code]# go tool compile -o main.o println.go
+[root@localhost code]# file main.o
+main.o: current ar archive
+[root@localhost code]# go tool link -o main -buildmode=exe main.o
+[root@localhost code]# file main
+main: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, not stripped
+```
+
+
+
+不写汇编器。据说，无技术含量。而且，投入产出比不高。一定不能写汇编器。
+
+相关资料：
+
+如何编写将汇编代码翻译成机器码的程序？
+
+https://www.zhihu.com/question/26659135
+
+《Go语言设计与实现》
+
+https://draveness.me/golang/docs/part1-prerequisite/ch02-compile/golang-machinecode/#%E6%B1%87%E7%BC%96%E5%99%A8
+
+Golang编译器漫谈（2）编译器目标文件
+
+https://hao.io/2020/01/golang%e7%bc%96%e8%af%91%e5%99%a8%e6%bc%ab%e8%b0%88%ef%bc%882%ef%bc%89%e7%bc%96%e8%af%91%e5%99%a8%e7%9b%ae%e6%a0%87%e6%96%87%e4%bb%b6/
+
+手把手教你做一个 C 语言编译器
+
+https://wizardforcel.gitbooks.io/diy-c-compiler/content/5.html
+
+## 名校公开课
+
+OCW---麻省理工
+
+https://ocw.mit.edu/courses/translated-courses/traditional-chinese/
+
+X86实验
+
+https://pdos.csail.mit.edu/6.828/2017/schedule.html
+
+## 学习方法读书笔记
+
+两本书：A（象棋冠军）、B（教授）。
+
+A大量使用象棋细节，我不理解；排版紧凑；行文环环相扣，一边读一边理解不了。
+
+B使用日常生活小事，排版宽松。
+
+不要指望一口气学成一个胖子。学得越好就越喜欢学习。
+
+人天生具备非凡的心算能力，例如打羽毛球时接球。接羽毛球还能验证这个，奇特。
+
+这本书对学习数学有用。
+
+先快速浏览全文，然后再逐字逐句读。
+
+专注思维，在一段时间内，顺着有条理的思路，聚焦一个问题。发散思维，不刻意，不沿着任何思路。发散思维，在休息和零碎时间进行。发散思维不能凭空产生，在专注思维打下的基础上。
+
+发散思维，像手电筒发出的散光；专注思维，像激光灯发出的聚焦的“光针”。
+
+学新事物，先用发散思维，方法论是：先广泛、粗略地了解，再选择一块专注了解。
+
+数学等理科为啥难学？
+
+1. 抽象。多训练。
+2. 思维定势。
+
+写吉他曲子，越是专注写出来的曲子越味同嚼蜡。不赞同。我文章，都是刻意写出来的。文章不会自然而然产生。
+
+集中思考一个问题没有进展，放松一下有助于解决问题。赞同这点。
+
+学习是在困惑中寻找答案的过程。当你能描述出困惑你的问题是什么时，你就成功了一半。只要你发现了困惑你的东西是什么，那么你离解答出来就不远了。
+
 
 
 ## 小插曲
