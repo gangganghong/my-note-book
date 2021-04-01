@@ -36,7 +36,7 @@ CPL = 0，用户程序才能执行敏感指令。
 
 #### popf
 
-`popf`的示意代码如下：
+`popf`的伪代码如下：
 
 ```assembly
 pushf		; 把eflags中的值入栈
@@ -57,6 +57,22 @@ popf		; 把栈中的值存储到eflags
 中断发生时，`eflags`会入栈中断例程的堆栈。修改这个堆栈中的`eflags`的值，然后再使用`iretd`就能把栈中的新`eflags`值更新到`eflags`中。
 
 ## IO位图
+
+![image-20210401150636460](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/dos/image-20210401150636460.png)
+
+
+
+
+
+![image-20210401150702476](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/dos/image-20210401150702476.png)
+
+
+
+![image-20210401150719143](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/dos/image-20210401150719143.png)
+
+*详情见《操作系统真相还原》5.4.7 IO特权级*
+
+
 
 `IOPL`对一个特权级的所有用户程序的`I/O权限`做“一刀切”的限制，要么这个特权级的所有用户程序拥有所有端口的`I/O`权限，要么拥有0个端口的`I/O`权限。IO位图允许对每个用户程序在I/O端口限制上做个性化配置。
 
@@ -111,4 +127,8 @@ TSS3_LEN			equ				$$ - LABEL_TSS3
 ```
 
 
+
+## 记录
+
+2020-04-01，重读。大概是20多天写的吧，已经忘记八九成。学习啊，要转为持久记忆，需要多重看。
 
