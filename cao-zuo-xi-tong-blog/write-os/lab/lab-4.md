@@ -297,6 +297,8 @@ TSS的左上角的1个字存储的是`I/O位图在TSS中的偏移量`。在nasm�
 
 ##### 最终方案
 
+代码在：`/home/cg/os/pegasus-os/v11`。
+
 1. 进入保护模式。
 2. 使用`retf`进入特权级是3的32位代码段ring3。
 3. 在ring3使用调用门回到另外一个特权级是0的32位代码段。
@@ -487,7 +489,7 @@ READ_FILE_OVER:
 LTR: not recognized in real or virtual-8086 mode
 ```
 
-
+在保护模式下才能加载 tss。
 
 
 
@@ -498,6 +500,10 @@ LTR: not recognized in real or virtual-8086 mode
 ### TSS描述符
 
 ![image-20210401164941653](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/lab/image-20210401164941653.png)
+
+### 疑问
+
+TSS中的I/O位图的偏移地址是：`$ - TSS的标量 + 2`。`2`的单位是字节。为什么不是字？其他元素比如通用寄存器，都把“保留位”计入了元素占用的空间，占用空间是32个bit。可I/O位图的偏移地址为什么只占用16个bit而不是32个bit？
 
 
 
