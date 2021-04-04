@@ -280,13 +280,446 @@ Mempcy:
 
 ## 调试
 
+### Mempcy导致被显示器被清屏
+
 代码写完了，但是，
 
 `ld -s -Ttext 0x30400  -o kernel.bin  kernel.o string.o kernel_main.o -m elf_i386` 导致显示器被清屏。
 
 `ld -s -Ttext 0x30400  -o kernel.bin  kernel.o -m elf_i386`，能正常显示。
 
+使用`ld -s -Ttext 0x30400  -o kernel.bin  kernel.o string.o kernel_main.o -m elf_i386`编译，CPU执行到了内核中吗？
 
+在进入内核的跳转语句前加上断点。
+
+是 call InitKernel 导致显示器被清屏。
+
+InitKernel 中某次调用 Memcpy 导致显示器被清屏。
+
+能确定，loader.asm中的Memcpy有问题。出现问题的两个条件：
+
+1. Memcpy
+2. Kernel_main.c中声明全局变量 char gdt_ptr[6]。
+
+使用下面的方法进一步定位出错的地方：
+
+1. 在Memcpy中设置断点，断点位置分别是结尾和中间。
+2. 去掉loader.asm中的其他断点，方便查看Memcpy中的断点。
+
+基本解决了问题，错误原因是：在ecx等于0时仍然将ecx递减，导致陷入死循环。
+
+*大概花了1个小时26分解决这个问题。我比较满意。这是一次没有严重浪费时间、思路清晰的解决问题的典范过程。*
+
+屏幕被清屏，我是这样处理的：
+
+1. 无明确思路地小修小改，然后运行，没找出任何线索。唯一让我觉得代码没能正常运行的症状是：屏幕被清屏。
+
+2. 逐个减少参与kernel.bin编译的文件：string.o、kernel_main.o。
+
+   1. 发现，没有kernel_main.o参与编译，就能正常执行。
+   2. 进一步发现，在kernel_main.c中创建全局变量就能重现问题。
+      1. 修改char gdt_ptr[6]为char gdt_ptr2[6]。仍能重现问题。
+      2. 去掉这个变量或去掉全局变量，在函数内创建同名局部变量，不能重现问题。
+      3. 这个线索很容易误导我，让我以为问题出在kernel_main.c中。
+      4. 我对比了于上神的代码，确信，在kernel_main.c中能写任意合法代码。
+
+3. 我决定，断点调试。
+
+   1. 使用”二分法“思想，逐步确定，问题出在InitKernel--->Memcpy中。
+
+   2. 是由于loader.asm 和 kernel.bin 中存在同名的Memcpy函数吗？
+
+   3. 修改了string.asm中的Memcpy，仍能重现问题，因此，错误原因不是Memcpy重名。
+
+   4. 去掉所有断点，只在Memcpy的中间和和结尾部分设置断点，记录在第N次断点后出现问题。
+
+   5. 重新运行，达到第N次断点时，单步调试，发现，
+
+      1. ecx等于0时仍被减去1，变成`0xffffff`（总之是溢出了，可能不是这么多f）。
+
+      2. 在ecx减1后，有一个判断，根据ecx是否等于1决定是否跳转。
+
+      3. 由于输入给Memcpy的数据特殊，ecx变成了`0xfffff`后和1比较，导致死循环。看下面的节选代码。
+
+         ```assembly
+         .1:
+                 mov byte al, [ds:esi]
+                 mov [es:edi], al
+         
+                 inc esi
+                 inc edi
+                 cmp ecx, 0
+                 jz .2
+                 dec ecx
+         
+                 cmp ecx, 0
+                 jz .2
+                 jmp .1
+         ```
+
+         死循环反复执行`.1`这段代码。总是执行这段代码为何会清屏，我不知道。修改ecx溢出的漏洞后，问题就消失了。
+
+*的确很满意解决这个问题的过程。第一，没有浪费时间。第二，思路清晰，没有漫无目的地胡乱调试。*
+
+解决这个问题，不需要专业知识，只需要：
+
+1. bochs的断点调试、单步执行、查看寄存器。xchg、s、r。
+2. 二分法。
+3. sed快速清空文件中的断点。
+
+### 重载GDT成功了吗？
+
+验证方法：
+
+1. 通过断点调试获取一些数据：
+   1. GdtPtr
+   2. 第一个描述符
+   3. 第二个描述符
+2. 与上面相同。
+
+具体做法：
+
+1. 在loader.asm的`lgdt [GdtPtr]`前面设置断点，获取GdtPtr。
+2. 进入保护模式后，使用sreg获取GDT base，然后使用`xp`查看前二个描述符。
+3. 在kernel.asm中的`lgdt [GdtPtr]`前面设置断点，方法与第1、2步相同。
+
+```shell
+(0) [0x00000002029c] 2000:029c (unk. ctxt): lgdt ds:0x017f            ; 0f01167f01
+<bochs:3> sreg
+es:0x9000, dh=0x00009309, dl=0x0000ffff, valid=1
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+cs:0x2000, dh=0x00009302, dl=0x0000ffff, valid=1
+	Data segment, base=0x00020000, limit=0x0000ffff, Read/Write, Accessed
+ss:0x0000, dh=0x00009300, dl=0x0000ffff, valid=7
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+ds:0x2000, dh=0x00009302, dl=0x0000ffff, valid=7
+	Data segment, base=0x00020000, limit=0x0000ffff, Read/Write, Accessed
+fs:0x0000, dh=0x00009300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+gs:0xb800, dh=0x0000930b, dl=0x8000ffff, valid=7
+	Data segment, base=0x000b8000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x00000000000f9af7, limit=0x30
+idtr:base=0x0000000000000000, limit=0x3ff
+<bochs:4> xp /1gx 0x2000:0x017f
+[bochs]:
+0x000000000002017f <bogus+       0>:	0xc88c0002013f003f
+
+<bochs:6> sreg
+es:0x9000, dh=0x00009309, dl=0x0000ffff, valid=1
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+cs:0x0008, dh=0x00cf9b00, dl=0x0000ffff, valid=1
+	Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+ss:0x0000, dh=0x00009300, dl=0x0000ffff, valid=7
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+ds:0x2000, dh=0x00009302, dl=0x0000ffff, valid=7
+	Data segment, base=0x00020000, limit=0x0000ffff, Read/Write, Accessed
+fs:0x0000, dh=0x00009300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+gs:0xb800, dh=0x0000930b, dl=0x8000ffff, valid=7
+	Data segment, base=0x000b8000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x000000000002013f, limit=0x3f
+idtr:base=0x0000000000000000, limit=0x3ff
+
+<bochs:7> xp /1gx 0x000000000002013f
+[bochs]:
+0x000000000002013f <bogus+       0>:	0x00000000
+<bochs:8> xp /1gx 0x20147
+[bochs]:
+0x0000000000020147 <bogus+       0>:	0xcf9b000000ffff
+<bochs:9> xp /1gx 0x2014f
+[bochs]:
+0x000000000002014f <bogus+       0>:	0xf98020460ffff
+
+
+```
+
+在kernel.bin中
+
+```shell
+(0) [0x00000003041d] 0008:000000000003041d (unk. ctxt): lgdt ds:0x00032500        ; 0f011500250300
+<bochs:8> sreg
+es:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+cs:0x0008, dh=0x00cf9b00, dl=0x0000ffff, valid=1
+	Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+ss:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+ds:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+fs:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+gs:0x003b, dh=0x0000f30b, dl=0x8000ffff, valid=7
+	Data segment, base=0x000b8000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x000000000002013f, limit=0x3f
+idtr:base=0x0000000000000000, limit=0x3ff
+<bochs:9> xp /1gx 0x30:0x32500
+[bochs]:
+0x0000000000032500 <bogus+       0>:	0x53fd0003200004ff
+
+
+<bochs:12> sreg
+es:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+cs:0x0008, dh=0x00cf9b00, dl=0x0000ffff, valid=1
+	Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+ss:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+ds:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+fs:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+gs:0x003b, dh=0x0000f30b, dl=0x8000ffff, valid=7
+	Data segment, base=0x000b8000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x0000000000032000, limit=0x4ff
+idtr:base=0x0000000000000000, limit=0x3ff
+
+<bochs:13> xp /1gx 0x32000
+[bochs]:
+0x0000000000032000 <bogus+       0>:	0x00000000
+<bochs:14> xp /1gx 0x32008
+[bochs]:
+0x0000000000032008 <bogus+       0>:	0xcf9b000000ffff
+<bochs:15> xp /1gx 0x32010
+[bochs]:
+0x0000000000032010 <bogus+       0>:	0xf98020460ffff
+
+```
+
+描述符是正确的，但是，`gdtr:base=0x0000000000032000, limit=0x4ff`中的`limit`不相同。~~二者应该相同才对。~~
+
+二者本来就不相同。
+
+在loader中，GDT中包含8个描述符，limit = 8 * 8 - 1 = 3f。
+
+在loader中，GDT的limit = 128 * 8 - 1 = 3ffh。
+
+注意，limit的计算单位是字节而不是bit，不要弄成了bit。我一开始认为limit的计算单位是bit。
+
+正确的打印数据：
+
+loader
+
+```shell
+<bochs:3> sreg
+es:0x9000, dh=0x00009309, dl=0x0000ffff, valid=1
+	Data segment, base=0x00090000, limit=0x0000ffff, Read/Write, Accessed
+cs:0x0008, dh=0x00cf9b00, dl=0x0000ffff, valid=1
+	Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+ss:0x0000, dh=0x00009300, dl=0x0000ffff, valid=7
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+ds:0x2000, dh=0x00009302, dl=0x0000ffff, valid=7
+	Data segment, base=0x00020000, limit=0x0000ffff, Read/Write, Accessed
+fs:0x0000, dh=0x00009300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0x0000ffff, Read/Write, Accessed
+gs:0xb800, dh=0x0000930b, dl=0x8000ffff, valid=7
+	Data segment, base=0x000b8000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x000000000002013f, limit=0x3f
+idtr:base=0x0000000000000000, limit=0x3ff
+```
+
+kernel
+
+```shell
+<bochs:17> sreg
+es:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+cs:0x0008, dh=0x00cf9b00, dl=0x0000ffff, valid=1
+	Code segment, base=0x00000000, limit=0xffffffff, Execute/Read, Non-Conforming, Accessed, 32-bit
+ss:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+ds:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=31
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+fs:0x0030, dh=0x00cf9300, dl=0x0000ffff, valid=1
+	Data segment, base=0x00000000, limit=0xffffffff, Read/Write, Accessed
+gs:0x003b, dh=0x0000f30b, dl=0x8000ffff, valid=7
+	Data segment, base=0x000b8000, limit=0x0000ffff, Read/Write, Accessed
+ldtr:0x0000, dh=0x00008200, dl=0x0000ffff, valid=1
+tr:0x0000, dh=0x00008b00, dl=0x0000ffff, valid=1
+gdtr:base=0x0000000000032000, limit=0x3ff
+idtr:base=0x0000000000000000, limit=0x3ff
+```
+
+计算出来的GDT的limit和打印出来的limit一致。这说明，在内核中重新加载GDT成功了。
+
+### C语言的sizeof
+
+```c
+char gdt_ptr2[6];
+int main(void)
+{
+        int arr[2] = {1,2};
+        printf("arr[0] = %d\n", arr[0]);
+
+        typedef struct{
+        unsigned short seg_limit_below;
+        unsigned short seg_base_below;
+        unsigned char  seg_base_middle;
+        unsigned char seg_attr1;
+        unsigned char seg_limit_high_and_attr2;
+        unsigned char seg_base_high;
+}Descriptor;
+
+        printf("Descriptor size = %d\n", sizeof(Descriptor));
+
+        typedef struct
+{
+    int a;
+    char b;
+    double c;
+} Simple2;
+
+
+        printf("int size = %d\n", sizeof(int));
+        printf("char size = %d\n", sizeof(char));
+        printf("double size = %d\n", sizeof(double));
+        printf("Simple2 size = %d\n", sizeof(Simple2));
+
+        struct {char b; double x;} a;
+        printf("a size = %d\n", sizeof(a));
+ 				
+  			return 0;
+}
+```
+
+
+
+```shell
+[root@localhost v15]# ./t
+arr[0] = 1
+Descriptor size = 8
+int size = 4
+char size = 1
+double size = 8
+Simple2 size = 16
+a size = 16
+```
+
+先贴一张图。
+
+![image-20210404145252149](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/lab/image-20210404145252149.png)
+
+sizeof应用于不同的数据类型计算结果的方式不同，在  http://c.biancheng.net/cpp/html/932.html 有很详细的理解。关于struct的举例是错误的。
+
+那篇文章写得很全面。不过，看一次甚至看两三次，也难记住。由于不需要考试，我只记住下面几点就够用了：
+
+1. sizeof应用于上图中的数据类型，结果是这个数据类型所占用的字节数。
+2. sizeof应用于联合体（Union），结果是联合体中所占空间最大的成员的长度（单位也是字节数）。
+3. sieof应用于struct，比较复杂，
+   1. 结果并不是成员的长度之和。
+   2. 受对齐规则影响。
+   3. 为一个成员M分配内存时，用M的偏移量O除以sizeof(M)。
+      1. 没有余数时，紧挨着前一个成员分配内存。
+      2. 有余数时，要在前一个成员和M之间再分配(O/sizeof(M) + 1)*sizeof(M) - O个字节。
+      3. 这是为了对齐分配的空间，没有意义。
+
+## GDT重载小结
+
+### 时间消耗点
+
+重载GDT有三大时间消耗点：
+
+1. Mempcy的三个参数
+   1. C语言的嵌套指针
+   2. 如何使用一个数组的局部，比如前2个元素、后4个元素。
+2. 验证GDT切换是否成功
+   1. 想出思路
+   2. 计算GDT的limit
+      1. C语言sizeof(struct)的结果，受”对齐“影响。
+      2. limit的单位是字节，不是bit。
+3. Memcpy中ecx溢出导致屏幕被清屏。
+
+### 调试GDT的limit的过程
+
+1. 重载GDT前后的limit的值不同。
+2. 认为二者应该相同，后来，确定，二者应该不同。
+   1. 在loader中只创建了8个全局描述符。
+   2. 在kernel中GDT中包含128个全局描述符。
+3. 获取到的重载后的GDT的limit是十六进制数，把它转成十进制数，加1除以64。
+4. 结果并不是128。
+5. 后来我确定，limit + 1 后除以描述符的长度，结果必须是128。
+6. (limit + 1) / 128 = 8。根据实际结果，计算出结构体Descriptor的长度是8。
+7. 我认为不应该是这个值，而应该是64。
+8. 在独立的C程序中计算sizeof(Descriptor)，结果仍是8。
+9. 我的注意力转移到C语言中的sizeof。
+10. 弄清sizeof作用于结构体的计算方法后，所有数据都能对应得上。
+
+## 重载堆栈
+
+在loader中很少使用堆栈，不创建堆栈也能够使用堆栈。
+
+完全不觉得在内核中需要重载堆栈。
+
+重载堆栈是啥意思？把loader中的堆栈中的数据复制到内核的堆栈中吗？切换堆栈后，有什么用吗？
+
+上面的问题，我完全不清楚，只能看书。看，然后写；重复几次，就当作我已经掌握这块知识了。
+
+切换堆栈很容易，只有几个陌生的知识点。
+
+### 陌生知识
+
+#### hlt
+
+在汇编语言中，本指令是处理器**“**暂停**”**指令。
+
+使程序停止运行，处理器进入暂停状态，不执行任何操作，不影响标志。当复位（外语：RESET）线上有复位信号、CPU响应非屏蔽中断、CPU响应可屏蔽中断3种情况之一时，CPU脱离暂停状态，执行HLT的下一条指令。
+
+*仍然不知道是啥意思，有啥必要使用这条指令。*
+
+执行效果没啥不同，只是多了一句：`00014952675i[CPU0  ] WARNING: HLT instruction with IF=0!`。
+
+#### popfd
+
+把堆栈栈顶元素更新到eflags寄存器。eflags寄存器存储32位数据，栈顶中的元素正好是32位数。
+
+pushfd把eflags寄存器中的值存储到堆栈中。和其他寄存器一样，在某段代码中修改eflags前先把eflags中的值存储起来，等待修改eflags的那段代码执行完后，再把存储在堆栈中的值更新到eflags中。
+
+还有其他操作堆栈的指令，内容有点多，不必全部记住。
+
+PUSHAD 指令按照 EAX、ECX、EDX、EBX、ESP（执行 PUSHAD 之前的值）、EBP、ESI 和 EDI 的顺序，将所有 32 位通用寄存器压入堆栈。
+
+POPAD 指令按照相反顺序将同样的寄存器弹出堆栈。与之相似，PUSHA 指令按序（AX、CX、DX、BX、SP、BP、SI 和 DI）将 16 位通用寄存器压入堆栈。
+
+POPA 指令按照相反顺序将同样的寄存器弹出堆栈。在 16 位模式下，只能使用 PUSHA 和 POPA 指令。
+
+### 创建堆栈
+
+```assembly
+[SECTION .bss]
+Stack				resb			1024*2
+StackTop:
+```
+
+`[SECTION .bss]`改成其他名字也行，使用它是习惯。
+
+唯一的一点，栈顶。
+
+我记得，之前创建堆栈，栈顶 = 栈的长度 - 1。
+
+resb是不是把堆栈初始化成了0？不是。已经验证过了。
+
+于上神的代码中，有这样一段：
+
+```assembly
+jmp	SELECTOR_KERNEL_CS:csinit
+csinit:		; “这个跳转指令强制使用刚刚初始化的结构”——<<OS:D&I 2nd>> P90.
+
+	push	0
+	popfd	; Pop top of stack into EFLAGS
+
+	hlt
+```
+
+`jmp	SELECTOR_KERNEL_CS:csinit`，为何如此？
 
 ## 参考
 
