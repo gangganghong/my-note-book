@@ -529,3 +529,5 @@ https://vlab.ustc.edu.cn/guide/index.html
 
 https://www.52doc.com/category/6
 
+https://www.manongbook.com/
+

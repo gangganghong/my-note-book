@@ -193,6 +193,16 @@ GDT中最多有2的13次方个描述符，这和选择子的高13位是描述符
 
 ![image-20210402102108463](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/image-20210402102108463.png)
 
+## 文档
+
+https://docs.huihoo.com/help-pc/hw-8259.html
+
+https://www.microsemi.com/existing-parts/parts/151882
+
+https://pdos.csail.mit.edu/6.828/2018/readings/hardware/8259A.pdf
+
+https://docs.huihoo.com/help-pc/int-int_table.html
+
 ## 记录
 
 2021-04-02 查找。
