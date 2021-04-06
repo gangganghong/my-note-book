@@ -201,6 +201,8 @@ https://www.microsemi.com/existing-parts/parts/151882
 
 https://pdos.csail.mit.edu/6.828/2018/readings/hardware/8259A.pdf
 
+中断项
+
 https://docs.huihoo.com/help-pc/int-int_table.html
 
 ## 记录
