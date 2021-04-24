@@ -517,6 +517,39 @@ if(如果tty是当前tty){
 
 > 46分钟。
 
+> 花了3个小时，写完了上面文字描述的代码。out_char、换行是难点。
+>
+> 不，还没有写完。in_process需要改造。
+>
+> 改造了in_process，不知道还有没有其他错误。耗时28分钟。
+>
+> 修正语法错误，耗费1个小时。编译，然后根据报错信息逐条修改：
+>
+> 1. 忘记加分号。
+> 2. out_char中的当前位置没有写成指针类型。
+> 3. 弄错结构体的成员变量。
+> 4. int 和 char 类型不一致。
+>
+> 断点调试28分钟，毫无线索。
+>
+> 总计耗费时间：6小时50分。
+>
+> 错误原因是：根据console的光标地址计算绝对地址时重复加了显存基地址。
+>
+> 怎么解决问题的？断点调试，定位到输出有问题，进一步定位到计算显存绝对地址有问题。
+>
+> 为啥会耗费这么多时间？TTY进程和键盘中断、时钟中断混合在一起，比较难理清执行流程，比较难创造测试条件。
+>
+> 后来怎么创造条件的？只运行TTY进程。
+>
+> 还有什么问题？
+>
+> 退格时，光标消失。小小修改后，测试了很多次，没有任何收获。
+
+设置光标时，值不是绝对显存地址，即，不需要也不能加上0xB8000这个基址。
+
+
+
 ## 疑问
 
 当前console才从键盘缓冲区（非8402缓冲）读数据，为什么？
@@ -541,3 +574,73 @@ if(如果tty是当前tty){
 
 检测缓冲区的counter是否为0，不为0，不切换，空转；
 
+## 调试
+
+```shell
+main.c: In function 'put_key':
+main.c:1214:16: warning: comparison of distinct pointer types lacks a cast
+   if(tty->head == tty->buf + KEYBOARD_BUF_SIZE){
+                ^~
+main.c:1215:14: warning: assignment to 'unsigned int *' from incompatible pointer type 'unsigned char *' [-Wincompatible-pointer-types]
+    tty->head = tty->buf;
+              ^
+main.c: In function 'out_char':
+main.c:1270:5: error: invalid type argument of unary '*' (have 'unsigned int')
+     *(addr_in_vm - 2) = ' ';
+     ^~~~~~~~~~~~~~~~~
+main.c:1271:5: error: invalid type argument of unary '*' (have 'unsigned int')
+     *(addr_in_vm - 1) = DEFAULT_COLOUR;
+     ^~~~~~~~~~~~~~~~~
+main.c:1282:5: error: invalid type argument of unary '*' (have 'unsigned int')
+     *(addr_in_vm + 1) = key;
+     ^~~~~~~~~~~~~~~~~
+main.c:1283:5: error: invalid type argument of unary '*' (have 'unsigned int')
+     *(addr_in_vm + 2) = DEFAULT_COLOUR;
+     ^~~~~~~~~~~~~~~~~
+main.c: In function 'tty_do_write':
+main.c:1318:20: error: 'CONSOLE' {aka 'struct <anonymous>'} has no member named 'counter'
+  while(tty->console->counter > 0){
+                    ^~
+main.c:1319:37: error: 'CONSOLE' {aka 'struct <anonymous>'} has no member named 'tail'
+   unsigned char key = *(tty->console->tail);
+                                     ^~
+main.c:1320:15: error: 'CONSOLE' {aka 'struct <anonymous>'} has no member named 'tail'
+   tty->console->tail++;
+               ^~
+main.c:1321:15: error: 'CONSOLE' {aka 'struct <anonymous>'} has no member named 'counter'
+   tty->console->counter--;
+               ^~
+main.c:1322:18: error: 'CONSOLE' {aka 'struct <anonymous>'} has no member named 'tail'
+   if(tty->console->tail == tty->buf + KEYBOARD_BUF_SIZE){
+                  ^~
+main.c:1323:16: error: 'CONSOLE' {aka 'struct <anonymous>'} has no member named 'tail'
+    tty->console->tail == tty->buf;
+                ^~
+main.c: In function 'init_tty':
+main.c:1356:25: warning: assignment to 'unsigned int *' from incompatible pointer type 'unsigned char *' [-Wincompatible-pointer-types]
+   tty->head = tty->tail = tty->buf;
+                         ^
+make: *** [Makefile:32: kernel.bin] Error 1
+```
+
+
+
+```shell
+unsigned int addr_in_vm = VM_BASE_ADDR + tty->console->cursor * 2;
+
+main.c:1270:5: error: invalid type argument of unary '*' (have 'unsigned int')
+     *(addr_in_vm - 2) = ' ';
+     ^~~~~~~~~~~~~~~~~
+```
+
+## 总结
+
+我简化了终端切换的按键，只需点击“F1~F3"中的一个键就能在console0、console1、console2三个终端之间切换。
+
+TTY的任务，耗费了五天时间。
+
+为什么这么慢？
+
+因为我又变得非常懒惰。每天的工作时间不足8小时。有很多天，我只在上午学习，午休之后就不想学。
+
+还有一个原因，回顾知识用得时间太长。一定要记住，实在想不起来，就去看学习资料。
