@@ -4,370 +4,590 @@
 
 /home/cg/os/pegasus-os/v28
 
-这部分非常难。我已经花了1个小时33分，却没有觉得我看明白了一些东西。
+## 代码阅读
 
-我是怎么做的？
-
-1. 看书，理解细节。
-   1. 被assert(la == va)阻碍，我认为，二者不相等。
-2. 按代码在书中出现的顺序看代码，看不懂很多细节。
-3. 看网络资料OSDV，全英文，很全面，却没用。
-4. 不记得具体行为了，又看LDT的初始化。我发现，我已经看不懂我一个月前写的代码了，更别说能讲出来细节。
-5. 看不懂，就不想看了，看了凤凰网、博客园。没啥好看的新闻、水文。
-
-这块内容，是个硬骨头。我原以为，我能一天做完。
-
-## 学习
-
-### v1
-
-IPC，进程间通信，是同步，非异步。
-
-要先实现几个调试函数。
-
-#### assert
-
-函数原型：`assert(condition)`。
-
-assert其实不是函数，只是一个宏。
-
-condition成立，什么也不做。condition不成立，打印错误信息，然后，马上停止往下执行，停在此处。
-
-很简单。工作量在assertion_failure函数。
-
-不理解于上神怎么用那么复杂的宏。为什么不写成函数。
-
-#### assertion_failure
-
-##### 魔术常量
-
-这是借用PHP中的术语。
-
-`__FILE__、__BASE_FILE__、__LINE__`。
-
-只有`__BASE_FILE`需要解释。可以在C代码中直接使用。
+### sys_printx
 
 ```shell
-Breakpoint 1, assertion_failure (exp=0x0, file=0x804858c "assert-demo.c", base_file=0x804858c "assert-demo.c", line=15)
-    at assert-demo.c:21
-21		printf("file:%s\nbase_file:%s\nline:%d\n", file, base_file, line);
+; =============================================================================
+;                                 sys_call
+; =============================================================================
+sys_call:
+        call    save
+
+        sti
+	push	esi
+
+	push	dword [p_proc_ready]
+	push	edx
+	push	ecx
+	push	ebx
+        call    [sys_call_table + eax * 4]
+	add	esp, 4 * 4
+
+	pop	esi
+        mov     [esi + EAXREG - P_STACKBASE], eax
+        cli
+
+        ret
+
 ```
 
-##### C语言的函数的参数加#
+`call    [sys_call_table + eax * 4]`调用下面的函数
+
+```c
+PUBLIC int sys_printx(int _unused1, int _unused2, char* s, struct proc* p_proc)
+{
+	const char * p;
+	char ch;
+
+	char reenter_err[] = "? k_reenter is incorrect for unknown reason";
+	reenter_err[0] = MAG_CH_PANIC;
+
+	/**
+	 * @note Code in both Ring 0 and Ring 1~3 may invoke printx().
+	 * If this happens in Ring 0, no linear-physical address mapping
+	 * is needed.
+	 *
+	 * @attention The value of `k_reenter' is tricky here. When
+	 *   -# printx() is called in Ring 0
+	 *      - k_reenter > 0. When code in Ring 0 calls printx(),
+	 *        an `interrupt re-enter' will occur (printx() generates
+	 *        a software interrupt). Thus `k_reenter' will be increased
+	 *        by `kernel.asm::save' and be greater than 0.
+	 *   -# printx() is called in Ring 1~3
+	 *      - k_reenter == 0.
+	 */
+	if (k_reenter == 0)  /* printx() called in Ring<1~3> */
+		p = va2la(proc2pid(p_proc), s);
+	else if (k_reenter > 0) /* printx() called in Ring<0> */
+		p = s;
+	else	/* this should NOT happen */
+		p = reenter_err;
+
+	/**
+	 * @note if assertion fails in any TASK, the system will be halted;
+	 * if it fails in a USER PROC, it'll return like any normal syscall
+	 * does.
+	 */
+	if ((*p == MAG_CH_PANIC) ||
+	    (*p == MAG_CH_ASSERT && p_proc_ready < &proc_table[NR_TASKS])) {
+		disable_int();
+		char * v = (char*)V_MEM_BASE;
+		const char * q = p + 1; /* +1: skip the magic char */
+
+		while (v < (char*)(V_MEM_BASE + V_MEM_SIZE)) {
+			*v++ = *q++;
+			*v++ = RED_CHAR;
+			if (!*q) {
+				while (((int)v - V_MEM_BASE) % (SCR_WIDTH * 16)) {
+					/* *v++ = ' '; */
+					v++;
+					*v++ = GRAY_CHAR;
+				}
+				q = p + 1;
+			}
+		}
+
+		__asm__ __volatile__("hlt");
+	}
+
+	while ((ch = *p++) != 0) {
+		if (ch == MAG_CH_PANIC || ch == MAG_CH_ASSERT)
+			continue; /* skip the magic char */
+
+		out_char(tty_table[p_proc->nr_tty].p_console, ch);
+	}
+
+	return 0;
+}
+```
+
+前提条件是：
+
+1. `call    [sys_call_table + eax * 4]`调用函数`int sys_printx(int _unused1, int _unused2, char* s, struct proc* p_proc)`
+2. sys_printx只有四个参数，在调用语句`call    [sys_call_table + eax * 4]`前入栈5个元素，如何保证最先入栈的元素`esi`不被误认为是sys_printx的参数？
+3. 这段代码是摘录自一本书，是正确的。那么，该怎么理解调用这个函数的代码？
+   1. 这个函数只有四个参数，却在调用语句前入栈5个元素？
+
+回答是：在调用sys_printx前入栈5个元素，完全没有问题。仔细看看，在save中还入栈了十几个元素。对入栈的十几个元素没有疑问，怎么就对和参数挨着的第5个元素有疑问呢？
+
+在函数内部，会自动从堆栈中获取正确的元素当作自己的参数。无论是C函数还是汇编函数，编写者（包括编译器）知道本函数有多少个参数，会自觉从堆栈中获取所需数量的元素当作参数。编写者知道自己只需要4个参数，不会从堆栈中获取5个元素当参数。
+
+在C函数内部，会这样从堆栈中获取参数：
+
+```assembly
+[ebp + 0]					; 旧ebp
+[ebp + 4]					; 调用函数的指令的下一条指令的地址
+[ebp + 8]					; 第一个参数
+[ebp + 12]				; 第二个参数
+[ebp + 16]				; 第三个参数
+[ebp + 20]				; 第四个参数
+```
+
+调用C函数的代码是这样的：
+
+```assembly
+push	esi
+
+	push	dword [p_proc_ready]
+	push	edx
+	push	ecx
+	push	ebx
+  call    [sys_call_table + eax * 4]
+```
+
+按照上面的`Calling Conventions`时，能从堆栈中正确获取到数据吗？能。模拟执行一次，就会发现，能。
+
+入栈了esi，会影响函数接收参数吗？不会。函数知道自己有4个参数，只会从堆栈中获取4个元素，根本不会理睬esi（中的值）。
+
+没理解问题的实质，思维定势，害得我在这样简单的问题上浪费3个小时左右。
+
+
+
+```shell
+(gdb) p p
+$2 = 0x37db0 "\003  assert(0) failed: file: kernel/clock.c, base_file: kernel/clock.c, ln24"
+
+(gdb) p *q
+$28 = 0 '\000'
+```
+
+sys_printx中
+
+```c
+if (!*q) {
+				// value of SCR_WIDTH is 80.
+				while (((int)v - V_MEM_BASE) % (SCR_WIDTH * 16)) {
+					/* *v++ = ' '; */
+					v++;
+					*v++ = GRAY_CHAR;
+				}
+				q = p + 1;
+			}
+```
+
+这段代码的效果是下图。
+
+![image-20210430143046242](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/lab/image-20210430143046242.png)
+
+
+
+1. 当*q的值是空格时，`!*q`仍为0。
+2. 当*q的值是空字符时，`!*q`的值是1。
+
+怎么弄明白的？断点调试看效果。
+
+
+
+最终效果是：
+
+![image-20210430143959484](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/lab/image-20210430143959484.png)
+
+
+
+### assertion_failure
+
+代码流程：
+
+1. /home/cg/yuyuan-os/osfs08/a/lib/misc.c#assertion_failure
+2. /home/cg/yuyuan-os/osfs08/a/include/proto.h#  #define	printl	printf
+3. sys_call.asm#printx
+4. tty.c#sys_printx(int _unused1, int _unused2, char* s, struct proc* p_proc)
+
+`char* s`：
+
+1. 是`printx`中的`mov	edx, [esp + 4]`
+2. 是printf的buf
+3. 是`assertion_failure(char *exp, char *file, char *base_file, int line)`中的
+   1. `printl("%c  assert(%s) failed: file: %s, base_file: %s, ln%d",
+      	       MAG_CH_ASSERT,
+      	       exp, file, base_file, line);`的第一个参数。
+4. 结论：`sys_printx`的`char* s,`是``printl`第一个参数用具体值替换后的字符串。
+   1. `int printf(const char *fmt, ...)`
+   2. `char* s,`是fmt被替换后的字符串。
+
+### proc2pid
+
+```shell
+/Users/cg/data/code/os/yy-os/osfs08/a/include/proc.h:
+   75: #define proc2pid(x) (x - proc_table)
+```
+
+### va2la
+
+```c
+// proc.c
+PUBLIC void* va2la(int pid, void* va)
+{
+	struct proc* p = &proc_table[pid];
+
+	u32 seg_base = ldt_seg_linear(p, INDEX_LDT_RW);
+	u32 la = seg_base + (u32)va;
+
+	// 初始化进程时，进程的代码段、数据段的地址空间的基地址都设置成0。
+	// 也就是说，seg_base = 0。
+	// 那么，la 应该等于 va。
+	if (pid < NR_TASKS + NR_PROCS) {
+		assert(la == (u32)va);
+	}
+
+	return (void*)la;
+}
+```
+
+`p = va2la(proc2pid(p_proc), s);`：
+
+1. `proc2pid(p_proc)`，进程在进程表中的索引。
+2. 进程中变量的内存地址。
+3. 目前，并没有必要这样做，因为，我根本没有使用虚拟地址。于上神的代码，目前也没有使用虚拟地址。
+4. 我实现assert时，此处暂时不必区分用户进程和非用户进程。
+5. 不，我实现assert时，要区分用户进程和非用户进程。不能太简化了。
+
+### MESSAGE
+
+```c
+/**
+ * MESSAGE mechanism is borrowed from MINIX
+ */
+struct mess1 {
+	int m1i1;
+	int m1i2;
+	int m1i3;
+	int m1i4;
+};
+struct mess2 {
+	void* m2p1;
+	void* m2p2;
+	void* m2p3;
+	void* m2p4;
+};
+struct mess3 {
+	int	m3i1;
+	int	m3i2;
+	int	m3i3;
+	int	m3i4;
+	u64	m3l1;
+	u64	m3l2;
+	void*	m3p1;
+	void*	m3p2;
+};
+typedef struct {
+	int source;				// sender 的 pid
+	int type;				// 1.mess1;2.mess2;3.mess3
+	union {
+		struct mess1 m1;
+		struct mess2 m2;
+		struct mess3 m3;
+	} u;
+} MESSAGE;
+```
+
+```c
+#define	RETVAL		u.m3.m3i1
+```
+
+
+
+MESSAGE的一个具体数值：
+
+```shell
+(gdb) p sender
+$9 = (struct proc *) 0x61a70 <proc_table+304>
+(gdb) p *sender
+$10 = {regs = {gs = 59, fs = 15, es = 15, ds = 15, edi = 3296919552, esi = 326190, ebp = 327436, kernel_esp = 400032, ebx = 1,
+    edx = 327460, ecx = 1, eax = 1, retaddr = 198359, eip = 198451, cs = 7, eflags = 518, esp = 327392, ss = 15}, ldt_sel = 88, ldts = {{
+      limit_low = 65535, base_low = 0, base_mid = 0 '\000', attr1 = 249 '\371', limit_high_attr2 = 207 '\317', base_high = 0 '\000'}, {
+      limit_low = 65535, base_low = 0, base_mid = 0 '\000', attr1 = 243 '\363', limit_high_attr2 = 207 '\317', base_high = 0 '\000'}},
+  ticks = 5, priority = 5, pid = 2, name = "TestA\000\000\000\350H\"\000\000\203\304\020", p_flags = 0, p_msg = 0x0, p_recvfrom = 25,
+  p_sendto = 25, has_int_msg = 0, q_sending = 0x0, next_sending = 0x0, nr_tty = 0}
+```
+
+这种消息有什么用？连字符串都没有。
+
+### phys_copy
+
+呵呵。原来，`#define	phys_copy	memcpy`。
+
+```c
+phys_copy(va2la(dest, p_dest->p_msg),
+			  va2la(proc2pid(sender), m),
+			  sizeof(MESSAGE));
+```
+
+把MESSAGE类型数据从sender复制到dest，这就是所谓的消息传递。
+
+### msg_send
+
+```shell
+/*****************************************************************************
+ *                                msg_send
+ *****************************************************************************/
+/**
+ * <Ring 0> Send a message to the dest proc. If dest is blocked waiting for
+ * the message, copy the message to it and unblock dest. Otherwise the caller
+ * will be blocked and appended to the dest's sending queue.
+ * 
+ * @param current  The caller, the sender.
+ * @param dest     To whom the message is sent.
+ * @param m        The message.
+ * 
+ * @return Zero if success.
+ *****************************************************************************/
+PRIVATE int msg_send(struct proc* current, int dest, MESSAGE* m)
+{
+	struct proc* sender = current;
+	struct proc* p_dest = proc_table + dest; /* proc dest */
+
+	assert(proc2pid(sender) != dest);
+
+	/* check for deadlock here */
+	if (deadlock(proc2pid(sender), dest)) {
+		panic(">>DEADLOCK<< %s->%s", sender->name, p_dest->name);
+	}
+
+	if ((p_dest->p_flags & RECEIVING) && /* dest is waiting for the msg */
+	    (p_dest->p_recvfrom == proc2pid(sender) ||
+	     p_dest->p_recvfrom == ANY)) {
+		assert(p_dest->p_msg);
+		assert(m);
+
+		phys_copy(va2la(dest, p_dest->p_msg),
+			  va2la(proc2pid(sender), m),
+			  sizeof(MESSAGE));
+		p_dest->p_msg = 0;
+		p_dest->p_flags &= ~RECEIVING; /* dest has received the msg */
+		p_dest->p_recvfrom = NO_TASK;
+		unblock(p_dest);
+
+		assert(p_dest->p_flags == 0);
+		assert(p_dest->p_msg == 0);
+		assert(p_dest->p_recvfrom == NO_TASK);
+		assert(p_dest->p_sendto == NO_TASK);
+		assert(sender->p_flags == 0);
+		assert(sender->p_msg == 0);
+		assert(sender->p_recvfrom == NO_TASK);
+		assert(sender->p_sendto == NO_TASK);
+	}
+	else { /* dest is not waiting for the msg */
+		sender->p_flags |= SENDING;
+		assert(sender->p_flags == SENDING);
+		sender->p_sendto = dest;
+		sender->p_msg = m;
+
+		/* append to the sending queue */
+		struct proc * p;
+		if (p_dest->q_sending) {
+			p = p_dest->q_sending;
+			while (p->next_sending)
+				p = p->next_sending;
+			p->next_sending = sender;
+		}
+		else {
+			p_dest->q_sending = sender;
+		}
+		sender->next_sending = 0;
+
+		block(sender);
+
+		assert(sender->p_flags == SENDING);
+		assert(sender->p_msg != 0);
+		assert(sender->p_recvfrom == NO_TASK);
+		assert(sender->p_sendto == dest);
+	}
+
+	return 0;
+}
+```
+
+#### 消息传递
+
+```c
+phys_copy(va2la(dest, p_dest->p_msg),
+			  va2la(proc2pid(sender), m),
+			  sizeof(MESSAGE));
+```
+
+把MESSAGE类型数据从sender复制到dest，这就是所谓的消息传递。
+
+#### 进程表和IPC相关的成员
+
+成功接收消息后，这些成员的值应该满足下面的要求：
+
+```c
+// p_flags，进程的运行状态：0.运行
+assert(p_dest->p_flags == 0);
+// p_msg是消息，数据类型是MESSAGE *。
+// 比较神奇，对一个结构体能这样赋值吗？试试就知道了。
+// 确实挺神奇的。p_dest->p_msg需要的值是内存地址，所以可以用数字。而且，只有使用0时没有警告，使用其他数字，都会产生警告。
+// 详情见见<结构体的赋值是0>。
+assert(p_dest->p_msg == 0);
+assert(p_dest->p_recvfrom == NO_TASK);
+assert(p_dest->p_sendto == NO_TASK);
+
+assert(sender->p_flags == 0);
+assert(sender->p_msg == 0);
+assert(sender->p_recvfrom == NO_TASK);
+assert(sender->p_sendto == NO_TASK);
+```
+
+##### ANY、NO_TASK
+
+```c
+#define ANY		(NR_TASKS + NR_PROCS + 10)		// 15
+#define NO_TASK		(NR_TASKS + NR_PROCS + 20)	// 25
+```
+
+##### 结构体的赋值是0
 
 ```c
 #include <stdio.h>
 
-#define ASSERT
-#ifdef ASSERT
-void assertion_failure(char *exp, char *file, char *base_file, int line);
-#define assert(exp)  if (exp) ; \
-        else assertion_failure(exp, __FILE__, __BASE_FILE__, __LINE__)
-#else
-#define assert(exp)
-#endif
+typedef struct{
+        char name[20];
+        int age;
+}Person;
 
-
-int main(int argc, char **argv)
-{
-        int a = 1;
-        int b = 3;
-        assert(a == b);
-        return 0;
-}
-
-void assertion_failure(char *exp, char *file, char *base_file, int line)
-{
-        printf("file:%s\nbase_file:%s\nline:%d\n", file, base_file, line);
-        printf("exp:%s\n", exp);
-
-        return;
-}
-```
-
-`assertion_failure(exp, __FILE__, __BASE_FILE__, __LINE__)`，exp是`char *`类型，实参不加`#`，并且是`a == b`时报错。
-
-```c
-[root@localhost c]# gcc -o assert-demo assert-demo.c -g -m32
-assert-demo.c: In function 'main':
-assert-demo.c:17:11: warning: passing argument 1 of 'assertion_failure' makes pointer from integer without a cast [-Wint-conversion]
-  assert(a == b);
-         ~~^~~~
-assert-demo.c:7:32: note: in definition of macro 'assert'
-         else assertion_failure(exp, __FILE__, __BASE_FILE__, __LINE__)
-                                ^~~
-assert-demo.c:5:30: note: expected 'char *' but argument is of type 'int'
- void assertion_failure(char *exp, char *file, char *base_file, int line);
-```
-
-exp是`char *`类型，实参加`#`，并且是`a == b`时，运行正常。
-
-```c
-#include <stdio.h>
-
-#define ASSERT
-#ifdef ASSERT
-void assertion_failure(char *exp, char *file, char *base_file, int line);
-#define assert(exp)  if (exp) ; \
-        else assertion_failure(#exp, __FILE__, __BASE_FILE__, __LINE__)
-#else
-#define assert(exp)
-#endif
-
+typedef struct{
+        Person *p;
+}T;
 
 int main(int argc, char **argv)
 {
-        int a = 1;
-        int b = 3;
-        assert(a == b);
+        //Person jim = 0;
+        //printf("jim.name = %s\n", jim.name);
+        //printf("jim.age = %d\n", jim.age);
+
+        Person *jim = (Person *)123;
+        //printf("jim->name = %s\n", jim->name);
+        //printf("jim->age = %d\n", jim->age);
+
+        if(jim == 0){
+                printf("jim = %d\n", 0);
+        }
+
+        T t;
+        t.p = 1;
+        if(t.p == 0){
+                printf("t.p = %d\n", 0);
+                printf("t.p = %d\n", t.p);
+        }
+
         return 0;
-}
-
-void assertion_failure(char *exp, char *file, char *base_file, int line)
-{
-        printf("file:%s\nbase_file:%s\nline:%d\n", file, base_file, line);
-        printf("exp:%s\n", exp);
-
-        return;
 }
 ```
 
-
+执行结果是：
 
 ```shell
-[root@localhost c]# gcc -o assert-demo assert-demo.c -g -m32
-[root@localhost c]# ./assert-demo
-file:assert-demo.c
-base_file:assert-demo.c
-line:17
-exp:a == b
+[root@localhost experiment]# gcc -o struct-demo struct-demo.c -g -m32
+struct-demo.c: In function 'main':
+struct-demo.c:27:6: warning: assignment to 'Person *' {aka 'struct <anonymous> *'} from 'int' makes pointer from integer without a cast [-Wint-conversion]
+  t.p = 1;
+      ^
 ```
 
-c函数传参时，实参前加`#`传输的是内存地址，不加`#`传输的是值。
+gdb调试过程：
 
-> 像这样的小知识点，耗费了29分。
->
-> 把于上神的代码抽取出来运行验证。语法而已。只需要知道上面的那个结论就行了。
+```shell
+(gdb) b main
+Breakpoint 1 at 0x80484be: file struct-demo.c, line 18.
+(gdb) run struct-demo
+Starting program: /home/cg/yuyuan-os/osfs08/a/experiment/struct-demo struct-demo
 
-##### printl
+Breakpoint 1, main (argc=2, argv=0xffffd3f4) at struct-demo.c:18
+18		Person *jim = (Person *)123;
+(gdb) s
+22		if(jim == 0){
+(gdb) p jim
+$1 = (Person *) 0x7b
+(gdb) s
+27		t.p = 1;
+(gdb) s
+28		if(t.p == 0){
+(gdb) p t.p
+$2 = (Person *) 0x1
+```
 
-这是一个宏，实质是printf。
+证实了我的猜想，赋值给结构体的是数字是内存地址。更正一下，并不是给结构体赋值，而是给结构体类型的指针赋值。
 
-###### printf
+不管是什么类型的指针，只要是指针，都可以把整数当内存地址A赋值给它。指针的类型，作用是，找到内存地址是A开头的那片内存，
 
-和v27的printf不同，
+1. 如果指针的类型是char，那么，那片内存只有一个字节。
+2. 如果指针的类型是int，那么，那片内存只有4个字节。
+3. 如果指针的类型是Person，那么，那片内存只有sizeof(Person)个字节。
 
-1. 调用的系统调用不是write，而是printx。
-2. 产生字符串的vsprintf也与v27的不同。
+##### p_dest->p_flags & RECEIVING
 
-###### vsprintf
+p_dest->p_flags &= ~RECEIVING;
 
-与v27的vsprintf大不同。
+p_dest->p_flags & ~RECEIVING & RECEIVING，结果是什么？
 
-1. 除支持`%x`外还支持`%c`、`%s`、`%d`等。
-2. 最关键，算法改变了，和v27实现`%x`很不同。
+1. 符合结合律吗？不符合。
 
-> 看到这个变化，我很苦恼！原来，IPC这一章，仅仅是两个调试函数，就包含这么多内容。对于想速成的我，简直是晴天霹雳！
 
-###### printx
 
-第一版计算。
+```c
+/* Process */
+#define SENDING   0x02	/* set when proc trying to send */
+#define RECEIVING 0x04	/* set when proc trying to recv */
+```
 
-中断重入，无法心算执行过程。笔算一下吧。
 
-1. A进程运行中，k = -1。
-2. 发生中断int1，inc k，k = 0。
-3. 进入调度程序，k = 0。
-4. 在调度未结束前，发生中断int2，k = 0，inc k，k = 1。
-5. 因为k = 1，不切换堆栈，沿用中断int2发生时的当前堆栈。
-6. 当前堆栈是被中断挂起的那个进程即调度程序的堆栈。
-7. 也就是说，中断重入时，不调度进程，恢复执行被中断int2挂起的调度程序。dec k ，k = 0。
-8. 调度程序执行结束，回到中断例程，继续执行。dec k，k = -1。
-9. 也就是说，在处理一个中断的过程中发生了另一个中断，方法是，直接不处理另一个中断。
-10. 接着第8步。中断发生，inc k，k = 0，切换堆栈。
-11. 结论：
-    1. k = 0时，切换堆栈；k != 0时，不切换堆栈。
-    2. 此时的特权级呢？我认为，都是在0特权级。
-
-上面的推测过程，正确性未知。
-
-> 今天，大半时间耗费在理解：根据k_reenter的值判断调用printx的特权级。
->
-> 毫无章法地盯着代码看，随意推测。无论推测得多合理，只是自圆其说，最好能运行看看执行过程。
->
-> 可是，我不知道怎么去测试，只能推测。
-
-第二版计算。
-
-1. 不会直接调用sys_printx，无论哪个特权级的进程，都会使用系统调用间接调用sys_printx。
-2. 并非所有代码都通过进程运行。kernel_main中的所有代码（调用的函数），没有在任何进程中。可以认为，它们的特权级是0。
-3. TestA、TaskTTY等，以进程的方式执行。可以认为，它们的特权级是1~3。
-4. 只有在restart执行之后，才能使用printx。因为，这个函数调用的out_char依赖TTY。
-
-> 又花了31分钟。看代码，推测。
->
-> 要换方法了，去运行代码看结果吧。
-
-第三版计算。
-
-~~调试代码：/home/cg/yuyuan-os/osfs08/a~~
-
-调试代码：/home/cg/yuyuan-os/osfs09/a
-
-编译的时候，gcc不能增加选项`-g`，否则，代码不能正常运行。可是，没有这个选项，就不能用gdb断点调试。
-
-> 耗费时间1小时16分。
->
-> 我一直在做什么？osfs08的代码不能运行，不能加载内核。我不知道是怎么回事。根据屏幕打印信息，我完全不知道怎么去解决那个问题。
->
-> 我做了什么？在loader.asm中断点，在kernel.asm中断点。修改kernel.asm为最小的内核。
->
-> 我一直不停地做各种修改：代码、配置、断点。就这样马不停蹄地折腾了1个小时16分。
->
-> 我还有一个新发现，我完全看不懂我一个多月前写的汇编代码了，当时烂熟于心的读取软盘扇区的知识，我也忘记了。呜呜呜呜.......。
->
-> 还好，/home/cg/yuyuan-os/osfs09/a能正确运行。明天，我用它来调试。
-
-第四版计算。
-
-第三版的代码不能用来调试。
-
-调试代码：/home/cg/yuyuan-os/osfs08，需用git切换到v1分支。
-
-调试思路：
-
-1. 在TestC使用assert(0)，用gdb在sys_printx设置断点。
-
-   1. 发现，k_renenter = 0
-
-2. 在clock_handler使用assert(0)。
-
-   1. ```shell
-      Breakpoint 1, sys_printx (_unused1=138775300, _unused2=228858,
-          s=0x37db0 "\003  assert(0) failed: file: kernel/clock.c, base_file: kernel/clock.c, ln24",
-          p_proc=0x61940 <proc_table>) at kernel/tty.c:182
-      182	{
-      (gdb) p k_reenter
-      $1 = 1
-      ```
-
-   2. 执行结果果然是于上神所说的。不过，我仍不知道代码怎么会出现这个结果。
-
-   3. 能运行看结果而不是只能猜想，很爽！
-
-##### spin
-
-用printl打印一个语句，然后停留在一个空的死循环。
-
-这个语句是：spinning in func_name
-
-> 这种场景下的死循环，有专门名称吗？
-
-##### 内联汇编
-
-`__asm__  __volatile__`。
-
-`__asm__ __volatile__("ud2");`，产生一个异常。具体是什么异常，试试就知道了。
-
-#### panic
 
 ## 工具
 
-### vim
+### gdb
 
-1. `0`到行首，`$`到行尾。
-2. `gg`到文档首行，`G`到文档结尾。
-3. `Ctrl`+`f`下一页，`Ctrl`+`b`上一页。
-4. `Ctrl`+`u`往上半页，`Ctrl`+`d`往下半页。
-5. `w`或`e`光标往后跳一个单词，`b`光标往前跳一个单词。
-6. `:98`跳转到第98行。
-7. `q:`显示**命令行历史记录**窗口。
-8. `!bash_Command`不退出vim暂时返回终端界面执行该命令。
-9. `H`将光标移动到屏幕首行，`M`将光标移动到屏幕中间行，`L`将光标移动到屏幕最后一行。
+```shell
+#以当前行为起点，打印源码
+#从第2行开始，打印源码
+list 2
+(gdb) show listsize
+Number of source lines gdb will list by default is 10.
+set listsize 5          //设置打印的行数为 5 行。
+set listsize 6          //设置打印的行数为 6 行。
+(gdb) list +2           //从当前行向下偏移 2 行
+(gdb) list -2            //从当前行向上偏移 2 行
+(gdb) list 1 , 5            //打印从第一行开始，到第五行结束。
+(gdb) list  , 5               //打印从当前行开始，到第五行结束。
+(gdb) list func                 //以func函数所在行为中心行打印。
+(gdb) list *0x1234             //以标记地址所在行为中心行打印。
+```
 
-> 接触vim很久了，一直都只使用非常常用的那些键，从未去发现其他的键。例如，在一行移动光标的快捷键。
+### idea
+
+激活
+
+https://sunjs.com/article/detail/6713ef497b9447dcbbd6f0557774bb4f.html
 
 ## 总结
 
-### 2021-04-27 23:23
+### 2021-04-29 21:16
 
-耗时9个小时08分。收获：
+前前后后耗费了3个小时左右。弄明白了上面的 sys_printx 问题。其实，真正弄明白这个问题只花了几秒钟。真的，一点都不夸张，确实是在最后几秒突然想清楚了。
 
-1. C函数的实参前加#，能传递内存地址。
-2. assert的实现方法。
+我小心翼翼地在一个微信群提问，碰碰运气呗，只有一个人回答，可答案完全不正确。
 
-障碍：
+我翻看《一个操作系统的实现》、《汇编语言程序设计》，看OSDV的"Calling Conventions"，都没有找到相关内容。网络，不必看了。汇编相关的问题，不流行。
 
-1. 根据k_reenter判断用户进程的特权级是0还是非0。不理解。
-2. 我并没有理解”中断重入“的解决方法。
+遇到这个问题，我忽然发现我理解不了之前理解了的问题，例如：进程表的寄存器的保存与弹出。
 
-教训：
+遇到问题，要有条理地想，越是没有头绪的问题，越要如此，要提出假设，而不要胡乱瞎找各种资料，一直盯着代码看。
 
-1. 解决难题，不要心算，要用笔算。
-2. 多进程代码的执行流程，我难以模拟。
-3. 不要依赖推测，要通过实际运行代码看执行过程。中断重入的代码，推测得再好，也只是自圆其说，不知道是不是正确的。
-4. 不要无脑调试！要分析、思考，然后再调试。
-5. 9个多小时一直盯着代码看、凭感觉推测多进程代码的执行、小修改小改动就运行。这样太浪费时间了！
+### 2021-04-30 14:51
 
-IPC真是块难啃的硬骨头！我原本预计一天就能结束它。没想到，它让我如此焦头烂额。
+耗费50分钟。基本看明白了assert、panic，其实是看懂了sys_printx。
 
-### 2021-04-28 09:26
+50分钟，大概只有最后20分钟才真正开始看明白，前30分看着代码琢磨，看不明白。后20分钟，我一边断点调试看效果一边理解，很快理解了。
 
-耗时1个小时48分，我收获只有沮丧。
+1. `if(!*p)`。
+   1. 只有`*p`是空字符时，才为真。
+   2. `*p`是空格时，是0。
 
-我做了什么？
+不理解代码的时候，就断点调试吧。
 
-1. 用xxd查看于上神的kernel.bin，看不懂。
-2. 我翻看自己写的elf文件分析实例笔记。我发现我以前写的笔记太简单，看不懂。
-3. 把kernel.asm的开头改成`jmp $`，在bochs用xp查看数据，不是预期数据。
-4. 我所做的就是反复重试上面的那些事。毫无进展。没有复习旧知识，也没能解决问题，连个头绪都没有，只有沮丧！
+### 2021-04-30 18:01
 
-### 2021-04-28 10:59
+断点调试又一次大显神威，让我理解了之前理解不了的msg_send函数。
 
-耗时1小时25分，我的收获很大。我修复了于上神的/home/cg/yuyuan-os/osfs09/a的代码，让它能够使用`gcc -g`选项编译也能正常运行。
-
-这意味着，我能够使用gdb+bochs断点调试了！
-
-我做了什么？
-
-用 bochs 深入代码断点调试，定位到了问题出在哪里。问题不在代码，而在一个寄存器的值。Memcpy的第三个参数size的值是一个非常非常大的值，这导致执行这个函数时进入死循环。
-
-这个值是ELF即内核的一个程序段的长度，正常情况下，不应该是一个无限大的值。
-
-为什么会如此？我认为，加g编译出来的内核太多，覆盖了其他数据（可能是覆盖了load.bin）。
-
-内核的段地址是0x8000，loader的段地址是0x9000。
-
-这是从外部设备加载到内存中的初始状态。于上神如此安排，loader总会被内核覆盖，他没有考虑到这一点？
-
-内核、loader等在内存中的分布，是个很重要，但我却没有弄清楚的问题。需另择良辰彻底弄清楚。
-
-教训是什么？
-
-1. 不要偷懒。什么叫偷懒？把出错的操作系统代码当黑盒子，不愿深入去分析，只指望随便改动一点就能改正确，像碰运气一样。
-2. 我改动了很多次，运行了很多次，手指都按得有点疼，然而，收获的只有郁闷和沮丧。
-3. 笔记，要尽量准确、详细、可索引。例如，我找了很久，才找到我分析ELF的笔记；我看不懂我的笔记。
-
-我如何验证重新放置内核是正确的？
-
-1. 在能正确运行的操作系统代码中，这样做：
-   1. 把内核的开头改成`jmp $`。这个指令的机器码非常容易辨认。
-   2. 用bochs在进入内核的语句前设置断点，获取内核的第一条指令的内存地址。
-   3. 用`xp /1wx 内存地址`打印机器码，如果是`jmp $`的机器码，说明重新放置内核正确。
-
-### 2021-04-28 16:22
-
-耗时1.5个小时。我高兴得太早了。在上次总结中，我说问题解决了，其实，是我看错了编译条件。问题仍然存在。
-
-我做了什么？
-
-1. 修改kernel的内存地址。
-2. 把内核改小。
-3. 在汇编代码中断点，但看不懂。
-4. 在一个多小时内，反复做这些事情。
-
-我看不懂一个多月前写的汇编代码。
-
-不过，我确定了问题所在：确实是于上神的loader不能加载过大的kernel。换成我的loader，就能正常加载kernel，但GDT不同，还是需要很多修改。
-
-又懒得思考，机械地做体力劳动。
