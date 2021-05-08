@@ -1,554 +1,920 @@
-# 实现IPC---区分系统任务和用户进程
+# 实现IPC
 
-## 调试函数
+## 代码位置
 
-实现panic、assert的难点是：根据k_reenter的值判断调用panic、assert时CPU所处的特权级。
+/home/cg/os/pegasus-os/v29
 
-怎么判断？
+## 学习
 
-1. 当k_reenter等于0时，调用panic、assert时CPU处于`1~3`特权级。
-2. 当k_reenter大于0时，调用panic、assert时CPU处于0特权级。
+### v1
 
-panic、assert调用系统调用printx，printx实际调用sys_printx。
+#### 调试函数
 
-在sys_printx中，根据魔数判断出调用者是panic还是assert。
+##### sys_printx
 
-如果是panic，在显存中打印错误信息。打印方式如下：
+这个函数被汇编代码写的汇编函数sys_call调用。
 
-1. 从0xb8000开始打印。
-2. 在打印完错误信息后，把紧挨着这条错误信息所在行的16行显存的背景色修改为灰色，但是，数据保持不变。
-3. 重复第一个步骤和第二个步骤，一直到显存耗尽。
+printx调用write，write触发sys_call调用sys_printx。printx是实现调试函数的基础。
 
-> 我不能很快想出实现上面效果的思路。
+在sys_printx中，执行printx时CPU的特权级是0或者调用方是panic，打印错误信息，然后关闭中断、hlt。关闭中断，让CPU在因执行hlt而停止之前不切换到其他代码。执行printx时CPU的特权级是1~3并且调用方不是panic，打印错误信息，然后正常返回。
 
-怎么写代码？
+重点不是打印错误信息。想简化工作，可以只打印错误信息就行。重点是，用户进程，会让CPU继续执行其他指令；内核代码，会让CPU停止。
 
-1. 第一层循环，是死循环。
-2. 打印错误字符串。使用循环。
-   1. 逐个打印错误字符串的字符。
-   2. 自增显存地址后，判断是否耗尽显存，若是，设置isEnd = true。
-   3. 循环条件是：遍历错误字符串，当前字符不是空。
-3. 修改错误字符串紧邻的16行显存的背景色。使用循环。
-   1. 逐个字节修改显存的背景色。
-   2. 自增显存地址后，判断是否耗尽显存，若是，设置isEnd = true。
-   3. 当前显存地址不是 80*16 的整数倍。是`80*16`还是`80*16*2`？
-4. 如果isEnd = true，跳出第一层循环。
-5. 打印完错误信息后，使用内联汇编执行`hlt`。
-6. 对了，在处理开始前，要禁用所有中断。因为，中断能让CPU运行其他代码。
+执行printx时CPU的特权级和在sys_printx中k_reenter的关系是：
 
-如果是assert，并且，调用assert时CPU处于0特权级，处理逻辑和panic相同。
+1. k_reenter大于0时，特权级是0。
+2. k_reenter等于0时，特权级是1~3。
 
-如果是assert，并且，调用assert时CPU不是0特权级，打印错误字符串，然后返回0。
-
-如果sys_printx没有终止代码执行，在assert中，使用spin中止代码执行。
-
-## IPC
-
-> 有点讨厌操作系统知识了。花了几个月时间了。
+> 时间久了，这个规则，我又会忘记。
 >
-> 从接触IPC开始讨厌操作系统知识。
+> 这种判断方法，非常不好。严格来说，特权级的值是k_reenter的值的充分条件，非充要条件（无法证明）。
 
-怎么写呢？
+spin
 
-同步通信。
+打印错误信息，然后使用死循环让CPU停止执行其他代码。
 
-用时钟中断为例子来分析IPC。
+内联汇编
 
-在进程A中获取时钟中断次数，在进程B中提供时钟中断次数。在A和B之间发生IPC。
+语法：`__asm__("ud2")__`。
 
-1. B先运行，执行msg_receive，接收来自任意进程的消息。
-   1. 由于向B发送消息的进程队列是空，B进程被阻塞。
-   2. 所谓阻塞，就是，发生进程调度，更换了p_ready_proc。
-   3. 如何切换到其他进程呢？
-   4. 并不会直接执行msg_receive，而是通过系统调用执行msg_receive。
-   5. 发生了系统调用中断，就会执行restart，切换到其他进程。其他进程是A进程。
-   6. 为什么是A进程？这是由所有进程的priority和调度算法决定的。
-2. A进程中，执行msg_send，执行get_ticks。
-   1. get_ticks，先执行msg_send，再执行msg_receive。
-   2. 执行msg_send
-      1. 向B进程传递消息体。
-         1. 传递了什么？
-            1. 要求B进程做什么。做什么？获取时钟中断次数。
-         2. 如何传递？
-            1. 把A进程中的Meesage *m复制到B进程中的Meesage *m。
-            2. 如何做到？
-            3. 在B进程执行msg_receive时，B->p_msg指向了B进程的Message *m。
-            4. 在A进程的msg_send中，复制操作，修改了B进程的Meesage *m。因为，复制使用的是Memcpy。
-            5. 用汇编来解释，有个变量D，复制操作修改的是[D]的数据，而不是D的数据。
-            6. 二者的差别是：D指代一块内存。修改D，修改的是D中的数据。修改[D]，修改的是D中的数据指向的内存中的数据。
-            7. 所以，执行复制操作后，B->p_msg = 0，并不会修改B进程中的Message *m的值。
-            8. 为什么？因为，B->p_msg = 0，修改的是D中的数据，而不是修改的[D]中的数据。
-      2. 解除B进程的阻塞。
-         1. 进程的状态用进程表中的p_flag表示。
-            1. 0：运行。
-            2. SENDING：阻塞。因发送消息而阻塞。
-            3. RECEIVING：阻塞。因接收消息而阻塞。
-         2. 把p_flag的值修改成0，就能解除阻塞。
-         3. 解决B进程的阻塞后，CPU仍然在运行A进程。
-   3. 执行msg_receive
-      1. 从哪里接收消息？从B接收消息。
-      2. 向A进程发送消息的队列是空的，A进程被阻塞，p_flag被设置成RECEIVING。
-      3. p_proc_ready被调度成B。
-3. 执行进程B。
-   1. 在进程B中，执行msg_send
-      1. 把时钟中断次数更新到进程A的Message *m。
-      2. 解除进程A的阻塞。
-4. CPU运行进程A，执行msg_receive。
+##### panic
 
-在上面这个例子中，数据通过msg_send拷贝，不在msg_receive拷贝。
+打印错误信息，让操作系统hlt。
 
-> 逻辑并不比PHP框架的实现逻辑复杂，操作系统的技术含量或难度，真的比PHP框架的计算含量或难度高吗？
->
-> 到了这个程序，应该就可以自己写代码实现了。然而，我仍然没有把握写得很完善。
+##### assert
 
-## Message
+打印错误信息，根据特权级决定让CPU死循环还是hlt。
 
-于上神设计的这个结构体，非常奇怪。
+> 我独立写出了上面的知识，却是在背诵。
 
-## 区分系统任务和用户进程
+#### IPC函数
 
-> 很烦这个功能，没有理由。当初为了赶进度，我搁置了这个功能。
->
-> 总是要实现这个功能的，就在实现IPC之前完成这个功能吧。
+不同进程之间传递数据，这就是IPC。
 
-TestA、TestB等是用户进程，特权级是3。
+怎么做到？有点混乱。
 
-哪些是系统任务？特权级是多少？TTY、Task_Sys都是系统任务，特权级是1。
+##### send
 
-只有内核代码（不以进程的形式运行）运行在特权级0。
+###### 简单流程
 
-怎么实现？
+A进程中有变量var1，B进程中有变量var2。要把var1的值复制给var2。
 
-1. 用户进程表的进程体放到用户进程表，系统任务的进程体放到系统任务表。
-2. kernel_main~~和init_propt都~~需要修改。
-   1. 在初始化进程时，系统任务的RPL和DPL都是1，用户进程的RPL和DPL都是3。
-   2. 系统任务的eflags是0x1202，用户进程的eflags是0x202。
-      1. 不理解。
-   3. 用冗余的方式，能简化工作；根据条件抽离出不同部分，能消除冗余，改动却大。
+过程是这样的：
 
+1. B进程先从A接收数据。由于A还没有向它发送数据，因此B的状态变为RECEIVING。
+2. A进程运行。把var1数据复制给var2。
+   1. 在A进程中不能做这个操作。A进程不能访问var2，不能访问B进程的任何数据。
+   2. A进程通过send完成这个操作。执行send时，CPU的特权级是0。
+   3. 在send中，var1通过参数传递进来。var2怎么进入send？
+   4. 在A中调用send，不能直接使用var2，能直接使用B的进程ID。
+   5. 根据B的进程ID，能计算出B的进程表。
+   6. B的进程表包含var2的内存地址吗？
+   7. B调用receive时，在receive中，可以把var2的内存地址（在进程B中的内存地址）记录到进程表中。
+   8. var1的线性地址 = A进程的数据段的基地址 + var1的偏移量，var2的线性地址 = B进程的数据段的基地址 + var2的偏移量。
+   9. 没有开启分页机制前，线性地址等于物理内存地址。
+   10. 在0特权级下，CPU能访问任何地址。把var1的数据复制到var2。
 
+###### 进程的运行，有顺序要求吗？
 
-CPL执行指令时，特权级是CPL还是RPL、还是DPL？
+就算有顺序要求，也不过分。进程的运行，总会有先有后。例如，服务端先运行，客户端后运行。
 
-根据于上神的代码，他认为，是DPL。不，他没有这样认为。CPL存储在cs、ss的第0位和第1位。
+###### 完整流程
 
-> 烦恼。特权级规则，我又忘记了，又不能理解。
+A进程向B进程发送消息。
 
+1. A进程向B发送消息，B是RECEIVE状态。
+   1. 把消息复制给B。
+   2. 解除B的阻塞。
+   3. A进程继续执行。
+2. A进程向B发送消息，B不是RECEIVE状态。
+   1. A进程转变为SENDING状态。
+   2. 把A进程放入B进程的待发送队列。
 
+> 写得这么简单，漏掉了很多内容吗？
 
-> 代码注释一定要写得非常非常详细！又耗费了半个小时理解原来写的代码。
->
-> 杂念丛生。
+##### receive
 
-## 疑问
+###### 完整流程
 
-一、初始化进程时，进程的描述符属性是怎么确定的？
+A进程向B进程发送消息，也就是，B进程从A进程接收消息。
 
-![image-20210507142505680](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/lab/image-20210507142505680.png)
+1. B进程从A进程接收消息，A进程并没有向B发送消息。
+   1. A进程并没有向B发送消息。
+      1. A进程的状态不是SENDING。
+      2. A进程发送的消息的目标不是B进程。
+   2. B进程的待接收队列不是空。
+      1. 在接收队列中查询A进程
+         1. 找到了，
+            1. 把消息从A进程复制到B进程。
+            2. 解除A进程的阻塞。
+            3. 把A进程从B的待接收队列中移除。
+            4. 继续执行B进程。
+         2. 没找到，阻塞B进程。
+            1. 应该阻塞还是继续执行？
+            2. 应该阻塞。因为，我设计的IPC是同步的。没有获取到数据继续执行，会导致错误。
+2. B进程从A进程接收消息，A进程向B发送消息。
+   1. A进程向B发送消息。
+      1. A进程的状态是SENDING。
+      2. A进程发送的消息的目标是B进程。
+   2. 把A进程的消息复制到B进程。
+   3. B进程继续执行。
 
-看不懂：
+B进程还能接收任意来源的消息。流程如下：
 
-1. 数据段都是向下扩展的吗？
-2. 堆栈段才是向下扩展的。
+1. B进程接收任意来源的消息。
+2. 待接收队列不是空，
+   1. 选取接收队列的第一个进程F，并且把它从接收队列中移除。
+   2. 把F的消息复制到B，解除F的阻塞。
+   3. B继续执行。
+3. 待接收队列是空，阻塞B，B的状态转变为RECEIVING。
 
-二、在init_internal_interrupt中，中断门的特权级检测规则不一致。详情看代码：
+##### 死锁
+
+A向B发送消息，B向A发送消息，这就是死锁。
+
+在哪里检查死锁？发送？接收？还是二者都需要检查死锁？
+
+在发送中，会出现死锁吗？会。
+
+发送和接收是一对。不成对出现，就会一直阻塞。
+
+《一个操作系统的实现》中的死锁处理并不是重点，也许不全面。我不在这个知识点上纠结太多时间。甚至，我可以等时间充足了再实现它。
+
+##### 疑问
+
+一、怎么计算进程内的变量的绝对地址？
+
+LDT[ds的索引部分] + 变量名。
+
+上面的公式不正确。
+
+应该是：数据段的基地址 + 偏移量。
+
+数据段的基地址：从LDT[ds的索引部分]中获取。LDT[ds的索引部分]的值是数据段的描述符。
+
+偏移量：用变量名表示。
+
+二、使用全局变量传递消息，能行吗？
+
+在用户进程中，能访问全局变量。如此，“保护”二字，体现在哪里？
+
+文件socket和操作系统中的全局变量有什么关系？
+
+## 写代码
+
+### 进程表修改
+
+#### 新增成员
+
+在进程表增加IPC要使用的成员：
+
+1. int p_flags，进程的状态：
+   1. RUNNING：0。
+   2. RECEIVING：1。
+   3. SENDING：2。
+2. Message *p_msg，消息体。
+3. int p_send_to，要发消息给谁，目标进程的ID。
+4. int p_receive_from，要从哪个进程接收消息，目标进程的ID。
+5. MsgSender p_send_queue，要给本进程发送消息的进程的队列。
+6. char p_name[20]，进程名称。
+
+#### 发送消息的进程队列
+
+队列中的元素是一个结构体。
 
 ```c
-void init_internal_interrupt()
+typedef struct{
+  	Proc *sender;
+  	Proc *next;
+}MsgSender;
+```
+
+
+
+### 调试函数
+
+#### write_debug
+
+通过sys_call调用sys_printx。
+
+原来的sys_write不改动。
+
+#### sys_printx
+
+函数原型：`void sys_printx(char *error_msg, int caller_pid)`。
+
+简化这个函数，无论调用方是谁，都用相同的方式打印字符串。
+
+这是在内核中，使用out_char还是disp_str打印字符串？
+
+使用out_char，因为，现在的打印，和TTY关联起来了。
+
+计算出error_msg的线性地址（等同物理地址），然后逐字符打印。详细流程如下：
+
+1. 计算error_msg的线性地址。
+   1. 当k_reenter = 0，调用方的特权级是1~3。线性地址 = 调用方进程的数据段的基地址 + error_msg。
+   2. 当k_reenter > 0，调用方的特权级是0。线性地址 = 数据段的基地址 + error_msg。
+2. 逐字符打印error_msg。
+
+#### vsprintf
+
+增加对%c、%s、%d的支持。
+
+##### %c
+
+1. char str[2] = {char, "\0"};
+2. Strcpy(p, str)；
+
+##### %s
+
+1. 使用`*((char **)next_arg_list)`获取字符串。
+2. 使用Strcpy连接到p。
+
+##### %d
+
+1. 把整型数据转成字符串形式。例如，把355转成字符串"355"。
+2. 使用Strcpy连接到p。
+
+怎么把355转成字符串"355"？
+
+
+$$
+355 = 3 * 100 + 5*10 + 5*1
+$$
+我的思路：
+
+1. 声明一个数组arr，数组大小是无符号整型数的最大值。这已经远远超出使用需求了。
+2. 355除以10，把余数放到数组arr中。
+3. 反复执行第2步，一直到商是0时停止。当商是0时，记录下当前数组索引n。
+4. 再申明一个和arr相似的数组，差别是这个数组的名字是arr2。
+5. 从后往前把数组arr的元素复制到数组arr2
+6. `arr2[index+1] = '\0'`。
+
+> 这种方法，太浪费空间。时间复杂度是O(N)。
+>
+> 于上神的代码使用了嵌套指针，理解不了。
+
+> 有点难。
+
+于上神的代码：
+
+```c
+char *i2a(int val, int base, char **ps)
 {
-	InitInterruptDesc(0,divide_zero_faultf,0x08,0x0E);
-	InitInterruptDesc(1,single_step_fault,0x08,0x0E);
-	InitInterruptDesc(2,non_maskable_interrupt,0x08,0x0E);
-	InitInterruptDesc(3,breakpoint_trap,0x08,0x0E);
-	InitInterruptDesc(4,overflow_trap,0x08,0x0E);
-	InitInterruptDesc(5,bound_range_exceeded_fault,0x08,0x0E);
-	InitInterruptDesc(6,invalid_opcode_fault,0x08,0x0E);
-	InitInterruptDesc(7,coprocessor_not_available_fault,0x08,0x0E);
-	InitInterruptDesc(8,double_fault_exception_abort,0x08,0x0E);
-	InitInterruptDesc(9,coprocessor_segment_overrun,0x08,0x0E);
-	InitInterruptDesc(10,invalid_task_state_segment_fault,0x08,0x0E);
-	InitInterruptDesc(11,segment_not_present_fault,0x08,0x0E);
-	InitInterruptDesc(12,stack_exception_fault,0x08,0x0E);
-	InitInterruptDesc(13,general_protection_exception_fault,0x08,0x0E);
-	InitInterruptDesc(14,page_fault,0x08,0x0E);
-	InitInterruptDesc(16,coprocessor_error_fault,0x08,0x0E);
-	InitInterruptDesc(17,align_check_fault,0x08,0x0E);
-	InitInterruptDesc(18,simd_float_exception_fault,0x08,0x0E);	
-
-
-	// 系统调用
-	// 属性可能需要修改
-	//InitInterruptDesc(0x90,sys_get_ticks,0x08,0x0E);	
-	// interrupt(): soft_int && (gate.dpl < CPL)
-	// InitInterruptDesc(0x90,sys_call,0x08,0x0E);	
-	// 0x08--->1000b--->特权级是0
-	// 1010b-->0xA--->特权级是1
-	// 1110b-->0xE--->特权级应该是3
-	InitInterruptDesc(0x90,sys_call,0x0E,0x0E);	
+  	int remainer = val % base;
+  	int quotient = val / base;
+  	if(quotient > 0){
+    		i2a(quotient, base, ps);	
+    }
+  	
+  	*(*ps)++ = remainer + '0';
+  
+  	return *ps;
 }
 ```
 
-系统调用的属性如果也和上面的系统中断设置成`0x08`，在系统调用中会出现general_protection_exception_fault错误。
+使用了递归，比较难理解。也不用去理解。递归是正确的。递归的写法是：
 
-次数，cpl是3，门的dpl是0，cpl > dpl。根据门调用规则，应该满足 cpl <= dpl。我理解这点。
+1. 没有递归的时候，处理逻辑。
+2. 满足什么条件，进入递归。
 
-可是，在相同的条件下，cpl是3，门的dpl是0，为什么0~18这些系统内置中断不满足这个规则也能正常运行呢？
+#### printx
 
-经过测试发现，0~18这些系统内置中断的描述符不受特权级规则约束，只要这些中断的描述符是门描述符就行。
+函数原型：`void printx(const char *fmt,...)`。
 
+系统调用，在调试函数中使用。
 
+不修改已经存在的Printf。
 
-1. 用户进程的dpl、rpl设置成非1，出现这些错误。
+#### spin
+
+函数原型：`void spin(char *error_msg)`。
+
+1. ~~使用printx打印错误信息。~~
+2. 死循环。
+3. 打印错误信息交给sys_printx，spin只执行死循环。
+
+#### panic
+
+函数原型：`void panic(char *error_msg)`。
+
+1. 在错误信息的开头加入魔数，PANIC_MAGIC，58。
+2. 使用printx打印错误消息。
+
+#### assert
+
+一个宏。
+
+逻辑流程：
+
+1. 表达式是true，什么也不做。
+2. 表达式是false，执行assertion_failure。
+
+代码是：
+
+```c
+#define assert	if(exp)
+	else	assertion_failure(#exp, __FILE__, __BASE_FILE__, __LINE__)
+```
+
+#### assertion_failure
+
+函数原型：`void assertion_failure(char *exp, char *filename, char *base_filename, unsigned int line)`。
+
+1. 在错误字符串的前面加上魔数，ASSERT_MAGIC，值是59。
+2. 这个很随意。我把魔数设计成一个字符，方便在sys_printx中解析。弊端是，把与魔数相同的字符识别为了魔数。
+3. 使用printx打印错误信息。
+4. 使用spin打印错误信息。第3步执行后CPU没有停止才执行到这一步。
+
+### IPC
+
+操作系统必须提供接收消息、发送消息两种功能。
+
+使用一个系统调用和两个系统调用都行。
+
+我选择用两个系统调用实现。没有特别理由，都行。
+
+#### sys_send_msg
+
+`int sys_send_msg(Proc *sender, Proc *receiver, Message *msg)`。
+
+流程：
+
+1. receiver的状态是RECEIVING，而且，receiver的消息来源是sender或ANY。
+   1. 从sender中把消息复制到receiver。
+   2. 重置sender。
+      1. p_msg = 0
+      2. p_send_to = 0
+   3. 重置receiver。
+      1. p_flags = 0
+      2. p_msg = 0
+      3. p_receive_from = 0
+   4. 解除receiver的阻塞。
+2. 不满足上面的条件。
+   1. 把sender中的消息放入receiver的p_send_queue。
+   2. 阻塞sender。
+
+被sys_call调用。
+
+#### sys_receive_msg
+
+`int sys_receive_msg(Proc *receiver, Proc *sender, Message *msg)`。
+
+流程如下：
+
+1. sender是ANY。
+   1. 检查p_send_queue。
+      1. 为空，copyOK = 0。
+      2. 不为空，获取队列的第一个进程，copyOk = 1。p_from是第一个进程。
+2. sender是某个特定进程。
+   1. sender 是SENDING状态，并且，sender的p_send_to是ANY或本进程。
+      1. 把sender从p_send_queue中移除。
+      2. copyOK = 1。
+      3. p_from是sender。
+   2. 不满足上面的条件。
+      1. ~~把receiver的状态修改为RECEIVING。~~
+      2. ~~阻塞receiver。~~
+3. copyOK = 1
+   1. 把消息从p_from复制到receiver。
+   2. 重置p_from。
+   3. 重置receiver。
+4. copyOK = 0
+   1. 把receiver的状态修改为RECEIVING。
+   2. src = ANY。把receiver的p_receiver_from设置成ANY。
+   3. src = 特定进程。把receiver的p_receiver_from设置成特定进程。
+   4. receiver的p_msg设置成m。
+      1. 不理解。
+   5. 阻塞receiver。
+
+被sys_call调用。
+
+#### send_msg
+
+系统调用。
+
+#### receive_msg
+
+系统调用。
+
+#### send_rec
+
+对send_msg、receive_msg进行封装。很有必要。
+
+> 理不清头绪。
+>
+> 不必受于上神的代码的束缚，我可以根据需求设计一切。
+
+### 用IPC改写get_ticks
+
+### TaskSys
+
+系统任务。运行时，CPU的特权级是1。
+
+### get_ticks
+
+一个系统调用。
+
+### sys_get_ticks
+
+## 难点
+
+### 双指针和字符串
 
 ```shell
-00023662400e[CPU0  ] interrupt(): soft_int && (gate.dpl < CPL)
-00023772645i[CPU0  ] WARNING: HLT instruction with IF=0!
+kernel/vsprintf.c:32:10: error: lvalue required as unary '&' operand
+  *ps++ = &((m < 10) ? (m + '0') : (m - 10 + 'A'));
 ```
 
-rpl = dpl = 2时，错误如下图：
+```c
+PRIVATE char* i2a(int val, int base, char ** ps)
+{
+	int m = val % base;
+	int q = val / base;
+	if (q) {
+		i2a(q, base, ps);
+	}
+	*(*ps)++ = (m < 10) ? (m + '0') : (m - 10 + 'A');
+	// 等价于
+	// unsigned char c = (m < 10) ? (m + '0') : (m - 10 + 'A');
+	// *ps++ = &c;
 
-![image-20210507162757967](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/lab/image-20210507162757967.png)
+	return *ps;
+}
+```
 
-rpl = dpl = 3时，错误如下图：
+`*(*ps)++ = (m < 10) ? (m + '0') : (m - 10 + 'A');`等价于下面的代码：
 
-cs：0x6--> 0000 0110--->rpl：10
+```c
+// 等价于
+unsigned char c = (m < 10) ? (m + '0') : (m - 10 + 'A');
+*ps++ = &c;
+```
 
-cs：0x7--> 0000 0111-->rpl：11
+已经运行代码测试过了。
 
-![image-20210507162933912](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/lab/image-20210507162933912.png)
+怎么理解？
+
+`char ** ps`，
+
+1. ps是一个指向指针的指针。
+2. `*ps`仍然是一个指针。指针的值，应该是内存地址，所以，`*ps = &c`。
+3. `*(*ps)++ = c`，怎么理解？
+   1. int *a;
+   2. `*a = 2;`。a的数据类型是指针，`*指针类型的变量`的值应该是指针类型中的那个“类型”的数据。
+   3. 上面的两句，是成立的。
+   4. `*(*ps)`中的`*ps`是一个指针，`*(*ps)`能够抽象为`*指针类型的变量`。所以，`*(*ps)`的值应该是指针类型中的那个类型，即`char`类型的数据。
+
+```c
+char *str = "hello";
+char **ps = &str;
+```
 
 
+下面的表格是上面的两个变量的内存示意图
 
 
+| 内存地址     | 0x06 | 0x07 | 0x08 |      |      |      |      |      |
+| ------------ | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 变量名       | ps   | str  |      |      |      |      |      |      |
+| 内存中的数据 | 0x07 | 0x08 | h    | e    | l    | l    | o    | \0   |
 
-![image-20210507175151559](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/lab/image-20210507175151559.png)
-
-
-
-查看IDT。
-
-1. 未初始化的IDT项的值是0。
-2. 查看中断向量号是0x90的方法是：`xp /1gx (0x000000000014b400 + 9 * 16 * 8)`。
+断点打印出来的数据如下：
 
 ```shell
-tr:0x0040, dh=0x00008b14, dl=0xb380006b, valid=1
-gdtr:base=0x0000000000134660, limit=0x3ff
-idtr:base=0x000000000014b400, limit=0x7ff
-<bochs:22> xp /1hx (0x000000000014b400 + 19)
-[bochs]:
-0x000000000014b413 <bogus+       0>:	0x0000
-<bochs:23> xp /1hx 0x000000000014b400
-[bochs]:
-0x000000000014b400 <bogus+       0>:	0x04f7
-<bochs:24> xp /1hx (0x000000000014b400 + 18)
-[bochs]:
-0x000000000014b412 <bogus+       0>:	0x0008
-<bochs:25> xp /1hx (0x000000000014b400 + 19 * 8)
-[bochs]:
-0x000000000014b498 <bogus+       0>:	0x0000
-<bochs:26> xp /1hx 0x000000000014b408
-[bochs]:
-0x000000000014b408 <bogus+       0>:	0x04fd
-<bochs:27> xp /1hx (0x000000000014b400 + 9 * 16 * 8)
-[bochs]:
-0x000000000014b880 <bogus+       0>:	0x05b8
-<bochs:28> xp /1gx (0x000000000014b400 + 9 * 16 * 8)
-[bochs]:
-0x000000000014b880 <bogus+       0>:	0x3ee00000805b8
+Breakpoint 1, main (argc=2, argv=0xffffd404) at point.c:18
+18		char *str = "hello";
+(gdb) s
+19		char **ps = &str;
+(gdb) s
+21		return 0;
+(gdb) p str
+$1 = 0x80485fd "hello"
+(gdb) p ps
+$2 = (char **) 0xffffd338
+(gdb) p &str
+$3 = (char **) 0xffffd338
+(gdb) x /1wx 0xffffd338
+0xffffd338:	0x080485fd
+(gdb) p *str
+$4 = 104 'h'
+(gdb) p *ps
+$5 = 0x80485fd "hello"
+(gdb) p **ps
+$6 = 104 'h'
+(gdb) ptype *ps
+type = char *
+(gdb) ptype **ps
+type = char
+(gdb) ptype ps
+type = char **
 ```
 
-中断向量号是0x90的IDT项是`0x3ee00000805b8`。它是一个中断门描述符。分析如下：
+挺麻烦的。
 
-1. 3 ee 00000 805b8
-2. 剥离十六进制的低10位，即剥离二进制形式的低40位，紧挨着的两位`ee`是属性。
-3. `ee`的二进制形式`1110 1110`。
-4. `P-DPL-DPL-S`分别是`1110`，S位是0，表示是门描述符；DPL-DPL是11，表示DPL是3。
-5. 和`InitInterruptDesc(0x90,sys_call,0x0E,0x0E);	`初始化出来的结果吻合。
+1. `char *str = "hello"`
+2. 看代码：
 
-
-
-idtr:base=0x000000000014b400, limit=0x7ff
-
-xp /1gx (0x000000000014b400 + 6 * 8)
-
-xp /1gx 0x000000000014b400
-
-xp /1gx (0x000000000014b400 + 7 * 8)
-
-xp /1gx (0x000000000014b400 + 1 * 8)
-
-xp /1gx 0x000000000014b400
+```c
+char *str = "hello";
+char *ps = str;
+ps = str;
+char **ptr = &str;
+ptr = &str;
+```
 
 
+
+### 双指针
+
+`strcpy(q, (*((char**)p_next_arg)));`中的`(*((char**)p_next_arg))`能获取字符。
+
+通过一段简单的代码理解了双指针。把这类问题叫做“双指针”可能不恰当。
+
+简单代码是：
+
+```c
+#include <stdio.h>
+
+int main(int argc, char **argv)
+{
+        //int *a;
+        int b = 7;
+        int *a = (int *)(&b);
+        int c = 9;
+        *a = c;
+        printf("a = %p\n", a);
+        printf("*a = %d\n", *a);
+        printf("b = %d\n", b);
+        int *e = &b;
+        printf("e = %d\n", *e);
+        //int *f = b;
+        //printf("f = %d\n", *f);
+
+        char *str = "hello";
+
+        return 0;
+}
+```
+
+设置了两个断点，分别是：`b main`、`b 18`。
+
+断点过程是：
 
 ```shell
-<bochs:15> xp /1gx (0x000000000014b400 + 6 * 8)
-[bochs]:
-0x000000000014b430 <bogus+       0>:	0x38e000008051b
+Breakpoint 2, main (argc=2, argv=0xffffd404) at point.c:18
+18		char *str = "hello";
+(gdb) s
+20		return 0;
+(gdb) p str
+$1 = 0x80485fd "hello"
+(gdb) p &str
+$2 = (char **) 0xffffd340
+(gdb) x /1wx 0xffffd340
+0xffffd340:	0x080485fd
+(gdb) p *(char **) 0xffffd340
+$3 = 0x80485fd "hello"
+(gdb) p *&str
+$4 = 0x80485fd "hello"
+(gdb) p b
+$5 = 9
+(gdb) p &b
+$6 = (int *) 0xffffd33c
+(gdb) p a
+$7 = (int *) 0xffffd33c
+(gdb) p &a
+$8 = (int **) 0xffffd34c
+(gdb) p &&a
+A syntax error in expression, near `&&a'.
+(gdb) p &(&a)
+Attempt to take address of value not located in memory.
 ```
 
-IDT项的属性：8e-->1000 1110，DPL是0。
+我的分析：
 
-`InitInterruptDesc(6,invalid_opcode_fault,0xF,0x0E);`
+1. `char *str = "hello";`，str的数据类型本来就是`char *`。
+2. `&str`的数据类型是什么？`p &str`打印出来的结果是`(char **) 0xffffd340`。
+3. 从结果看出，`&str`的数据类型是`char **`。
+4. 能总结出什么规则？
+5. 内存地址，形式上是一个无符号整型数，数据类型却是一个指针，指针的数据类型是`普通数据类型 *`，例如，`int *`，`char *`。
+6. 一个变量的值是内存地址，那么，这个变量的数据类型是一个指针，即`普通数据类型 *`。
+7. 如果这个变量的值是一个内存地址，在这块内存地址中的数据，又是一个内存地址，那么，这个变量的数据类型是一个指向指针的指针，即`普通数据类型 **`。
+8. 非常明显，指向指针的指针的数据类型是`普通数据类型 **`。
+9. `int b`，
+   1. `b`的数据类型是`int`。
+   2. `&b`是`b`这个变量的内存地址。内存地址的数据类型是指针。`&b`的数据类型是`int *b`。
+10. `int *a = (int *)(&b);`
+    1. a是一个指针，数据类型是`int *`。
+    2. &a是一个内存地址，是指针a这个变量的内存地址，也是一个指针，是一个指向指针的指针。
+    3. &a的数据类型是`int **`。
 
-![image-20210507211253343](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/lab/image-20210507211253343.png)
+## 资料
 
-0xF->1111-->S位不是0，不是门描述符。
+printf用法大全，C语言printf格式控制符一览表
 
-遇到ud2，触发Invalid code，却发现这个中断的描述符不是合法的描述符，因此触发`General protection`。
-
-假如连`General protection`中断也未定义，那又会触发`double_fault_exception_abort`。
-
-`InitInterruptDesc(6,invalid_opcode_fault,0xE,0x0E);`，OK。
-
-`InitInterruptDesc(6,invalid_opcode_fault,0xD,0x0E);`
-
-```
-00022542473e[CPU0  ] interrupt(): gate descriptor is not valid sys seg (vector=0x06)
-00022652698i[CPU0  ] WARNING: HLT instruction with IF=0!
-
-```
-
-![image-20210507210821662](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/lab/image-20210507210821662.png)
-
-0xD-->13-->1101-->S位不是0，不是门描述符。
-
-
-
-`InitInterruptDesc(6,invalid_opcode_fault,0xC,0x0E);`，OK
-
-`InitInterruptDesc(6,invalid_opcode_fault,0xB,0x0E);`
-
-B-->11-->1011-->DPL=1,S=1，不是门描述符。
-
-CPL:0x7-->0111--->CPL=3
-
-![image-20210507211035622](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/lab/image-20210507211035622.png)
+http://c.biancheng.net/view/159.html
 
 ## 总结
 
-### 2021-05-07 21:33
+### 2021-05-08 10:56
+
+写代码思路框架，耗费20多分钟。
+
+理清IPC的代码思路时，有点费劲。思路不顺畅，我就会浪费时间，思维陷入非理性状态，无所事事，似乎在等待灵感。
+
+为什么不顺畅？我其实在回忆于上神的代码思路，却不能完整地回忆出来。
+
+为啥又顺畅了？我对自己说，不必受于上神的代码的束缚，我可以随心所欲地根据需求自由设计。
+
+写完了代码框架（其实，就是几个函数），当初以为很多的东西，其实，没有多少。每个函数的细节，我都知道，却不愿写出来。
+
+无论是边想边写，还是先想好再写，都会消耗思考时间。把写代码和思考分开，能减少难度（也许吧）。
+
+写着写着，会思维混乱。若先想好了方案，思维不会混乱。
+
+IPC逻辑，不比以前做过的业务需求多，真的更有技术含量吗？真的能使我更有竞争力吗？
+
+IPC逻辑，不比以前做过的业务需求多。这是感觉。更准确的回答，是找出一个做过的需求，对比一下，
+
+### 2021-05-08 15:04
+
+理解嵌套指针的用法，耗费了58分，仍然没有理解。
+
+代码是这样的：
+
+```c
+int printf(const char *fmt, ...)
+{
+	int i;
+	char buf[256];
+
+	va_list arg = (va_list)((char*)(&fmt) + 4); /*4是参数fmt所占堆栈中的大小*/
+	i = vsprintf(buf, fmt, arg);
+	buf[i] = 0;
+	printx(buf);
+
+	return i;
+}
+
+PUBLIC int vsprintf(char *buf, const char *fmt, va_list args)
+{
+	char*	p;
+
+	va_list	p_next_arg = args;
+	int	m;
+
+	char	inner_buf[STR_DEFAULT_LEN];
+	char	cs;
+	int	align_nr;
+
+	for (p=buf;*fmt;fmt++) {
+		if (*fmt != '%') {
+			*p++ = *fmt;
+			continue;
+		}
+		else {		/* a format string begins */
+			align_nr = 0;
+		}
+
+		fmt++;
+
+		if (*fmt == '%') {
+			*p++ = *fmt;
+			continue;
+		}
+		else if (*fmt == '0') {
+			cs = '0';
+			fmt++;
+		}
+		else {
+			cs = ' ';
+		}
+		while (((unsigned char)(*fmt) >= '0') && ((unsigned char)(*fmt) <= '9')) {
+			align_nr *= 10;
+			align_nr += *fmt - '0';
+			fmt++;
+		}
+
+		char * q = inner_buf;
+		memset(q, 0, sizeof(inner_buf));
+
+		switch (*fmt) {
+		case 'c':
+			*q++ = *((char*)p_next_arg);
+			p_next_arg += 4;
+			break;
+		case 'x':
+			m = *((int*)p_next_arg);
+			i2a(m, 16, &q);
+			p_next_arg += 4;
+			break;
+		case 'd':
+			m = *((int*)p_next_arg);
+			if (m < 0) {
+				m = m * (-1);
+				*q++ = '-';
+			}
+			i2a(m, 10, &q);
+			p_next_arg += 4;
+			break;
+		case 's':
+			strcpy(q, (*((char**)p_next_arg)));
+			q += strlen(*((char**)p_next_arg));
+			p_next_arg += 4;
+			break;
+		default:
+			break;
+		}
+
+		int k;
+		for (k = 0; k < ((align_nr > strlen(inner_buf)) ? (align_nr - strlen(inner_buf)) : 0); k++) {
+			*p++ = cs;
+		}
+		q = inner_buf;
+		while (*q) {
+			*p++ = *q++;
+		}
+	}
+
+	*p = 0;
+
+	return (p - buf);
+}
+```
+
+`strcpy(q, (*((char**)p_next_arg)));`中的`(*((char**)p_next_arg))`能获取字符。理解不了。
+
+我做了什么？
+
+盯着代码看，依照原来的指针知识来自圆其说。
+
+断点调试，观察值的变化，仍然没有看出规则。
+
+大部分时间，盯着代码或打印出来的数据在看。
+
+### 2021-05-08 15:35
+
+再次理解嵌套指针，耗费了26分，都是有效时间。
+
+也不能说完全理解了，我把通过断点调试打印出来的数据当作语法规则了。不问为什么，语法就是这样的。记住它，并且，我以后也可以这么用。
+
+什么知识？
+
+1. `int a`
+   1. a的数据类型是int。
+   2. &a的数据类型是`int *`。
+2. int *b
+   1. b的数据类型是`int *`。
+   2. &b的数据类型是`int **`。
+3. char *str
+   1. str的数据类型是`char *`。
+   2. &str的数据类型是`char **`。
+4. char str
+   1. str的数据类型是`char`。
+   2. &str的数据类型是`char *`。
+
+下面是用gdb断点打印出来的数据：
+
+```shell
+Breakpoint 1, main (argc=2, argv=0xffffd404) at point.c:18
+18		char *str = "hello";
+(gdb) s
+19		char m = 'A';
+(gdb) s
+21		return 0;
+(gdb) whatis str
+type = char *
+(gdb) whatis &str
+type = char **
+(gdb) ptype str
+type = char *
+(gdb) ptype &str
+type = char **
+(gdb) whatis m
+type = char
+(gdb) whatis &m
+type = char *
+(gdb) ptype m
+type = char
+(gdb) ptype &m
+type = char *
+```
+
+gdb打印出的数据类型也不总是正确的，例如：
+
+```shell
+(gdb) ptype p_next_arg
+type = char *
+(gdb) ptype &p_next_arg
+type = char **
+(gdb) p &p_next_arg
+$9 = (va_list *) 0x4fe3c <task_stack+97948>
+(gdb) p p_next_arg
+$10 = (va_list) 0x4ff88 <task_stack+98280> "\350?\003"
+```
+
+`ptype p_next_arg`打印出来的数据类型应该是`char **`。因为，p_next_arg的值是一个内存地址，而这个内存地址又指向另一块内存。换句话说，p_next_arg的值是一个指针，这个指针指向内存中的一个字节。
+
+在具体场景中，p_next_arg的值是一个内存地址，在堆栈中。而堆栈中的那块内存中存储的，又是一个内存地址。
+
+在这种语法问题上纠缠这么久，让我没心情继续写IPC的逻辑了。
+
+### 2021-05-08 17:17
+
+又验证嵌套指针，耗费42分，大部分时间是有效时间，运行例子，验证或摸索语法规则。
+
+### 2021-05-08 17:47
+
+把无符号整型数转为字符串，理解于上神的代码，耗费30分。
+
+两个知识点：
+
+1. 递归。
+2. `char **`类型指针。理解起来比较烦。
+
+### 2021-05-08 18:05
+
+理解并验证`*(*ps)++`。太琐碎了。耗时32分。
+
+代码是：
+
+```c
+char *str = "hello";
+char **ps = &str;
+```
+
+用gdb断点调试的过程如下：
+
+```shell
+Breakpoint 1, main (argc=2, argv=0xffffd404) at point.c:18
+18		char *str = "hello";
+(gdb) s
+19		char **ps = &str;
+(gdb) s
+21		return 0;
+(gdb) p *(*ps)++
+$47 = 104 'h'
+(gdb) p *(*ps)++
+$48 = 101 'e'
+(gdb) p *((*ps)++)
+$49 = 108 'l'
+(gdb) p *((*ps)++)
+$50 = 108 'l'
+(gdb) p *((*ps)++)
+$51 = 111 'o'
+(gdb) p *((*ps)++)
+$52 = 0 '\000'
+
+(gdb) p *ps
+$54 = 0x80485fd "hello"
+(gdb) p *0x80485fd
+$55 = 1819043176
+(gdb) x /1wc  *0x80485fd
+0x6c6c6568:	Cannot access memory at address 0x6c6c6568
+(gdb) x /1wx 0x80485fd
+0x80485fd:	0x6c6c6568
+(gdb) x /1wc 0x80485fd
+0x80485fd:	104 'h'
+(gdb) x /1wc 0x80485fe
+0x80485fe:	101 'e'
+(gdb) p *ps
+$56 = 0x80485fd "hello"
+(gdb) p (*ps)+1
+$57 = 0x80485fe "ello"
+(gdb) p (*ps)+2
+$58 = 0x80485ff "llo"
+(gdb) p (*ps)+3
+$59 = 0x8048600 "lo"
+(gdb) p (*ps)+4
+$60 = 0x8048601 "o"
+```
+
+内存分布示意图：
+
+| 内存地址     | 0x00 | 0x02 | 0x03 | 0x04 | 0x05 | 0x06 | 0x07 | 0x08 |
+| ------------ | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| 变量名       | ps   | str  |      |      |      |      |      |      |
+| 等价名称     |      | *ps  | **ps |      |      |      |      |      |
+| 内存中的数据 | 0x01 | 0x03 | h    | e    | l    | l    | o    | \0   |
+|              |      |      |      |      |      |      |      |      |
+
+`*(*ps)++`，怎么理解？
+
+1. `*ps`的值是`0x03`。
+2. `(*ps)++`能依次得到：`0x03、0x04、0x05、0x06、0x07、0x08`。
+3. 对一个内存地址（其实就是一个指针）使用`*`，获取或指向的是这个内存地址中的数据。
+4. `*(*ps)++`等价于`*((*ps)++)`。
+5. `*(*ps)++`的实质是：`*(0x03)`、`*(0x04)`、`*(0x05)`、`*(0x06)`、`*(0x07)`、`*(0x08)`。
+6. 但是，直接使用`*(0x03)`、`*(0x04)`、`*(0x05)`、`*(0x06)`、`*(0x07)`、`*(0x08)`这种形式的语句，不符合C语言的语法。
+
+### 2021-05-08 20:17
+
+`sys_receive_msg`的业务逻辑，写文档，思维混乱，想不起来，只能看于上神的代码。有些操作，我思考后仍觉得没有必要。
+
+比较烦躁。
+
+耗费35分。
+
+这个业务逻辑设计成这样，是个人喜好和IPC的要求。
+
+分成了两部分，第一部分是检查能不能接收消息，第二部分是接收消息或不接收消息的具体措施。
 
-中断门描述符的特权级规则不一致。大概耗费了四五个小时。
-
-时间不是消耗在修复错误，而是消耗在理解为什么那样修改能凑效。
-
-#### 收获
-
-1. 复习。门描述符占用64个位，属性中的S位是0。
-2. bochs。打印内存地址中的数据时，不需要使用计算出来的内存地址，可以直接用内存地址表达式，例如：`xp /1gx (0x000000000014b400 + 7 * 8)`。内存地址的单位是字节，所以需要乘以8。
-3. IDT中，未初始化的IDT项是0。
-
-#### 做了什么
-
-1. 盯着代码看。这是老习惯了。心算和盯着代码看，都是导致低效的恶习。
-2. 没有头绪时，先确定思路，按思路去调试。越是没有头绪越要坚持这样做。
-3. 我不记得我做了些什么。那么长的时间跨度，我又那么随意地用各种方式修改、测试，不记得也是正常的。
-4. 使用gdb断点，能看到cs等。可仍不能解释为何不符合规则。
-5. 使用bochs断点，仍然没有发现什么。
-
-#### 教训
-
-书上将的规则是规则，我多次运行看到的规则，难度不是规则？
-
-也许，0~18中断门描述符的属性中的特权级本就无用，只是，于上神没有在书中指出来而已。
-
-## JD
-
-高级系统工程师 — 基础设施研发
-
-职位描述
-
-1、负责基础设施软件开发，必要时对硬件提出改进方案； 2、领域包括存储、缓存、CDN、消息队列、业务部署系统、数据库等； 3、操作系统级的子系统改进、优化，或新的子系统。
-
-职位要求
-
-1、计算机、通信及相关专业本科以上学历； 2、精通 Linux 环境下的 C/C++/Golang/Python/Shell 的开发，有丰富的高并发场景经验，代码质量有很高水平； 3、熟悉 TCP/IP 通信原理和各种 NIO 模型的编程；深刻理解性能优化的原理和原则； 4、责任心强，做事认真细致；沟通能力强，具备良好的团队协作精神，能独立工作；有强烈的进取心和求知欲，善于学习和运用新知识； 5、具备以下条件之一者优先：具有内核、操作系统相关开发经验者；具有负载均衡、IPS、IDS等网络平台研发经验；具有CDN、Cache、Web server 研发经验；具有 DNS 相关研发经验者优先。
-
-
-
-资深边缘计算系统工程师
-
-职位描述
-
-1、负责字节跳动边缘计算领域服务器、硬件架构设计及落地、软硬协同调优工作； 2、负责字节跳动边缘计算领域计算、存储、网络解决方案，推进边缘计算基础设施演进，赋能业务。
-
-职位要求
-
-1、本科及以上学历，计算机、通信等相关专业； 2、熟悉X86/ARM体系结构、数据中心、服务器（计算、存储、网络）技术； 3、熟悉Linux操作系统、内核、网络、容器等技术，熟悉性能分析及调优； 4、熟练掌握一门以上的开发语言（Go、Python、C、C++、Shell等）； 5、具有云计算、存储、网络、CDN、边缘计算/雾计算/IOT物联网行业经验优先。
-
-
-
-全球分布式表格系统工程师--ByteTable/HBase
-
-职位描述
-
-全球化、高性能、低成本、云原生（Cloud Native）的分布式表格系统，为上层应用提供丰富的特性。其服务于整个字节产品体系，包括抖音，西瓜视频、今日头条等，作为基础存储设施，支撑了亿级峰值请求和PB存储的海量规模。 1. 负责分布式表格系统的设计、开发、性能调优、新技术调研等工作； 2. 根据上层业务的需求，从稳定性、功能、性能等方面，对表格系统进行设计和改进； 3. 按照项目进度制定开发目标，撰写详细设计文档并负责模块实现、性能调优、功能测试； 4. 为上层线上应用提供及时的技术支持，并从中提取出潜在的需求和优化点，持续优化系统；
-
-职位要求
-
-\1. 熟悉 C++/ Java 程序开发(至少一种），追求高品质代码，注重代码的工程质量； 2. Linux 系统知识扎实，精通任意一种语言的多线程、网络编程、分布式开发； 3. 深入了解数据库原理，熟练掌握分布式存储、计算的关键技术并有实战经验； 4. 善于独立思考，能够主动发现问题，有系统化的问题分析能力和解决问题能力； 5. 对未知领域有一定的学习、探索和研究能力； 具备以下条件之一者优先： 1. 开源社区活跃贡献者优先； 2. 熟读过 RocksDB, HBase, TiDB, CockroachDB, ClickHouse, ScyllaDB, etcd 等开源代码者优先； 3. 熟悉 Paxos、Raft 等一致性协议者优先；
-
-对象存储研发工程师-成都
-
-职位描述
-
-1、负责字节跳动的自研对象存储 (EB级) 的基础研发工作，提供稳定可靠的存储服务； 2、深入理解业务场景的需求，实现对象存储平台化。
-
-职位要求
-
-1、熟悉Ceph, Minio等，阅读过相关的代码实现，有相关开源项目的代码贡献优先； 2、熟练掌握Linux环境下的C/C++/Go/Python/Shell/PHP等一种以上语言； 3、具备一定的网络知识，熟悉TCP/IP通信原理； 4、熟悉分布式系统的基本架构，并清晰不同架构的优缺点以及适用的场景优先。 具备以下条件之一者优先： 1、具有内核、操作系统相关开发经验者优先； 2、具有扎实的Linux系统编程能力，熟悉Linux系统的I/O栈优先； 3、具有熟悉Go语言，并且有一年以上的使用经验优先。
-
-第二存储（冷存储）研发工程师
-
-职位描述
-
-1、参与大规模冷存储系统软件栈的设计、开发和优化； 2、探索冷存储的成本优化、可靠性、容灾等核心问题；
-
-职位要求
-
-1、本科及以上学历，计算机、通信等相关专业，3年及以上相关经验 2、熟悉主流分布式存储系统原理，有分布式文件、对象、块经验者优先； 3、熟悉重复数据删除、数据压缩、数据洞察、数据索引等常用技术； 4、有分布式文件系统、企业存储、数据备份、数据容灾经验者优先； 5、对Cohercity、Actifio、Rubrick等第二存储产品熟悉者优先。
-
-存储研发工程师
-
-职位描述
-
-1、参与大规模分布式存储系统后端存储软件栈的设计、开发和优化； 2、探索新一代存储引擎架构的设计及演化，以保证低延迟和高吞吐； 3、深入理解业务场景的存储需求，与业务合作寻找最合适的存储方案。
-
-职位要求
-
-以下要求满足任意一条即可： 1、理解存储系统的原理，比如Linux内核I/O栈、存储协议（NVMe/SCSI，NVMe-oF或iSCSI）； 2、熟悉用户态IO栈/网络栈，有SPDK、DPDK或PMDK等应用经验； 3、喜欢并善于钻研新技术，跟进学术以及企业圈的最新进展，了解新硬件（包括且不限于Optane SSD，AEP，FPGA）在存储系统中的应用； 4、有单机存储引擎（裸盘文件系统或KV引擎）或缓存系统设计经验。
-
-边缘存储研发工程师
-
-职位描述
-
-1、深入理解边缘业务场景的存储需求，与业务合作寻找最合适的边缘存储解决方案 2、参与大规模分布式存储系统在边缘场景的设计、开发、落地和优化 3、探索新一代边缘存储的架构设计及演化，解决可信、安全、可靠等问题
-
-职位要求
-
-1、本科及以上学历，计算机、通信等相关专业，3年及以上相关经验； 2、熟悉主流分布式存储系统原理，有分布式文件、对象、块、NoSQL经验者优先； 3、有大规模分布式系统实践经验，擅长对现实问题进行建模并运用解决； 4、有强烈的求知欲、好奇心和进取心，对工作充满热情，有独立探索技术的能力
-
-高级后端开发工程师-存储方向
-
-职位描述
-
-1、负责飞书业务存储中间件、领域分布式存储等基础系统的架构设计、优化和演进； 2、负责高质量的设计和编码，为产品线提供高可用、高性能、高扩展的基础服务； 3、承担重点、难点的技术攻坚，输出优秀的技术方案； 4、主要语言为Golang/C++/Python。
-
-职位要求
-
-1、5年及以上服务端开发经验，有大型分布式系统研发经验优先； 2、良好的设计和编码品味，对代码有极致追求； 3、较好的产品意识，愿意将产品效果做为工作最重要的驱动因素； 4、积极乐观，认真负责，乐于协作； 5、有存储系统、存储引擎、数据处理、高性能网络等领域优秀作品者优先。
-
-存储研发工程师
-
-职位描述
-
-1、参与新型存储技术的构建、研究分析、开发、设计、在系统层面助力存储新技术在业务落地； 2、深入理解SSD的固件架构以及代码实现，Linux block IO layer的架构和实现, 开发软硬一体化方案； 3、深入理解存储业务应用，对分布式KV、HDFS、分布式块存储等进行深入分析，了解业务情况与用户需求，制定性能成本最优的软硬一体化方案； 4、跟进业界最新研究、开发状态，结合业务发展，规划与设计存储支撑组件软硬件架构的路线图。
-
-职位要求
-
-1、3年以上存储领域相关工作经验； 2、具有文件系统开发经验，了解Linux内核文件系统栈和各类文件系统的实现，及其优劣势； 3、熟悉Linux内核编程，特别是文件系统栈、内存管理、调度和内核各种编程机制； 4、对NVMe SSD和Flash介质的特性、内部原理与访问协议有所了解，能够有针对性的对一体化方案进行二次开发和性能优化； 5、熟悉SmartSSD、OpenChannel、ZNS、NVMe over Fabric，有驱动和应用开发的优先； 6、熟悉磁盘/Flash相关的各种数据结构，了解它们的异同点和优劣势，可以针对不同介质和场景，选择不同的数据结构。
-
-时序数据库TSDB存储组件研发工程师
-
-职位描述
-
-1、参与大规模分布式时序数据库（TSDB）落盘存储系统设计和开发，保障系统在极高并发访问的场景下稳定、低延迟、高可用、易伸缩； 2、深入理解业务场景的存储需求，实现时序数据库平台化 & 多租户化；
-
-职位要求
-
-1、 熟悉C++/Go等语言，熟悉网络编程，多线程编程； 2、了解分布式存储系统的实现原理； 3、优秀的编码能力，针对业务场景设计和实现 in-house 系统；对工程质量有很高的自我要求； 4、参与过TSDB 时序数据库（OpenTSDB，Influxdb，M3, Prometheus, Karios） 社区开发、调优优先考虑； 5、熟悉SQL & SQL optimizer /coprocessor优先考虑； 6、有过大型自研分布式存储系统经验者优先考虑。
-
-存储研发工程师
-
-职位描述
-
-\1. 参与单机存储问题定位、性能优化、特性开发； 2. 参与新型存储技术的构建、研究分析、开发、设计、在系统层面助力存储新技术在业务落地。
-
-职位要求
-
-\1. 熟悉Linux常用命令，了解一种或多种常用脚本语言，Python、Golang、Shell等； 2. 了解soft lockup、 hard lockup、死锁、panic、oom等日常问题； 3. 对内核通用模块有代码级了解，熟练使用日常定位手段(perf、SystemTap、 eBPF、 crash) ； 4. 熟悉文件系统VFS或IO子系统，有block IO scheduler、blkmq、ext4/xfs/btrfs/f2fs之一经验者更优； 5. 熟悉HDD/NVMe/AEP等器件特性、对NVMe协议，wearleveling、write amplication的SSD原理有认知； 6. 有SmartSSD、Open-Channel、Zone Namespace、NVMe over Fabric经验者更优。 7. 熟悉CephFS、HDFS等分布式存储以及Rocksdb存储引擎技术者更优。
-
-云原生存储开发工程师
-
-职位描述
-
-1、 对齐自研 PaaS 与业界云原生（CloudNative）技术栈，用技术驱动极致的资源使用效率和运维效率； 2、 负责抽象建模主流存储产品线的集群管理、运维需求，基于K8S生态，设计研发场景化自动化解决方案； 3、 设计、开发完整的平台化解决方案，包括资源管理、容量测算、弹性伸缩等技术专题。
-
-职位要求
-
-1、 熟练掌握 K8S 并有大规模应用经验，熟悉K8S相关技术体系，对1个或多个服务有过深入研究； 2、 熟练掌握至少一门开发语言（Go/Python/C++/Java/PHP等）， 对数据结构、算法设计有较为深刻的理解； 3、 熟悉至少一种存储系统(数据库、表格、缓存、消息队列、对象、块等) ，并有相关的开发经验 ； 4、 有K8S operator相关研发经验，适配过分布式缓存、消息队列、数据库等产品者优先。
-
-服务端(高级)研发工程师 - 存储
-
-职位描述
-
-1、负责字节跳动视频中台海量视频图像数据存储管理和传输同步的系统开发和技术架构； 2、打造业界领先的技术中台，包括但不限于对象存储、存储网关和中间件、消息队列和数据总线、上传分发源站系统等； 3、对业务逻辑进行合理抽象，高效地满足 tech2B 产品化与商业化的架构和业务需求； 4、主动发现现有系统的弱点并加以完善，确保模块线上运行稳定。
-
-职位要求
-
-1、本科及以上学历，至少 1 年服务端开发经验，强悍的系统设计及编码能力； 2、精通主流语言的至少一门 Go / C / C++ / Java / Python / Erlang / Rust 等； 3、有高性能网络软件开发经验，熟悉TCP/IP网络协议栈及相关网络开发框架； 4、有优秀的逻辑分析能力，能够对业务逻辑进行合理的抽象和拆分； 5、积极乐观，责任心强，工作认真细致，具有良好的团队沟通与协作能力； 6、有强烈的求知欲、好奇心和进取心 ，能及时关注和学习业界最新技术； 7、【加分项】有大规模存储、传输、中间件系统的设计和开发经验。
-
-分布式存储引擎研发工程师
-
-职位描述
-
-1、参与大规模分布式存储系统后端存储软件栈的设计、开发和优化； 2、探索新一代存储引擎架构的设计及演化，以保证低延迟和高吞吐； 3、深入理解业务场景的存储需求，与业务合作寻找最合适的存储方案；
-
-职位要求
-
-1、熟悉存储系统原理，如Linux内核I/O栈、存储协议（NVMe/SCSI，NVMe-oF或iSCSI）、分布式等； 2、熟悉用户态IO栈/网络栈，有SPDK、DPDK或PMDK等应用经验； 3、熟悉新硬件介质（包括且不限于Optane SSD，AEP，FPGA）在存储系统中的应用； 4、熟悉ext3/ext4/zfs/xfs单机文件系统，SAN存储，或者RocksDB/LevelDB。
-
-分布式块存储/文件存储研发工程师
-
-职位描述
-
-1、负责字节跳动的分布式文件系统架构设计和优化 2、负责字节跳动块存储架构设计和优化
-
-职位要求
-
-1、拥有分布式系统相关研发经验，熟悉分布式系统相关理论，如paxos/raft等； 2、 熟悉C/C++/Go/Python等其中一种语言，熟悉网络编程，多线程编程； 3、 熟悉分布式存储系统的关键技术点及解决方案。 具备以下条件之一者优先： 1、有Linux内核、文件系统、IO调优相关经验者优先； 2、有Bypass Kernel，如RDMA/DPDK/SPDK相关经验者优先； 3、 有业界主流分布式存储系统Ceph/HDFS/GlusterFS经验者优先； 4、 开源社区活跃贡献者优先。
-
-对象存储研发工程师
-
-职位描述
-
-1、负责字节跳动的自研对象存储 (EB级) 的基础研发工作，提供稳定可靠的存储服务 2、深入理解业务场景的需求，实现对象存储平台化
-
-职位要求
-
-1、熟悉Ceph, Minio等，阅读过相关的代码实现，有相关开源项目的代码贡献优先 2、熟练掌握Linux环境下的C/C++/Go/Python/Shell/PHP等一种以上语言 3、具备一定的网络知识，熟悉TCP/IP通信原理 4、熟悉分布式系统的基本架构，并清晰不同架构的优缺点以及适用的场景优先 具备以下条件之一者优先： 1、具有内核、操作系统相关开发经验者优先 2、具有扎实的Linux系统编程能力，熟悉Linux系统的I/O栈优先 3、具有熟悉Go语言，并且有一年以上的使用经验优先
-
-存储引擎研发工程师
-
-职位描述
-
-1、参与大规模分布式存储系统设计和开发，保障系统在极高并发访问的场景下稳定、低延迟、高可用、易伸缩； 2、深入理解业务场景的存储需求，与业务合作寻找最合适的存储方案。
-
-职位要求
-
-1、了解分布式存储系统的实现原理； 2、优秀的编码能力，针对业务场景设计和实现 in-house 系统；对工程质量有很高的自我要求。 3、KV方向：熟悉 memcache, redis, leveldb/rocksdb, HBase 等系统的设计优先； 4、Table方向：熟悉 TiKV, HBase 等系统的设计优先； 5、FS方向：熟悉 cephfs, HDFS, glusterfs, moosefs 等系统的设计优先。
-
-高级存储研发工程师
-
-职位描述
-
-1、负责分布式数据库Hbase相关的设计开发； 2、负责单机LSM引擎Rocksdb相关的设计开发。
-
-职位要求
-
-1、3年以上相关领域开发经验，扎实的编程能力，精通 C/C++/Java 中的一种； 2、对分布式系统的架构和原理有比较深入的了解； 3、优秀的发现和解决问题能力，良好的沟通能力，具备团队合作精神。 加分项： 1、拥抱开源，有开源项目经历，对前沿技术有浓厚的热情和探索欲望； 2、熟悉 Paxos/Raft 等分布式一致性算法； 3、熟悉分布式事务模型； 4、熟悉常见存储引擎 Rocksdb、Redis底层代码； 5、熟悉操作系统底层知识，有TCP/IP、IO等系统调优经验。
-
-基础架构高级工程师 — 云计算/存储/系统架构
-
-职位描述
-
-字节跳动基础架构团队主要负责公司私有云建设，支撑着今日头条、抖音、西瓜视频等多款明星产品。我们积极拥抱开源和创新的软硬件架构，构建一系列基础设施引导研发活动的最佳实践，为整个公司的发展保驾护航。 1、负责字节跳动分布式计算、分布式存储、虚拟化、网络、linux内核、研发平台等基础设施的构建和优化； 2、参与架构设计和开发，为亿级用户提供优质顺畅的信息服务和极致体验； 3、协助团队攻克各种高并发和系统解耦等方面的技术难关； 4、负责基础设施的可用性和稳定性保障。
-
-职位要求
-
-1、熟悉TCP/IP协议，熟练掌握Linux网络编程和多线程编程技术； 2、熟练掌握Linux环境下的C/C++/Go/Python/Shell/PHP等一种以上编程语言； 3、有较强的系统问题分析经验和能力，能够解决复杂的系统问题； 4、了解Kubernetes/Mesos/SwarmKit等编排服务框架优先； 5、有分布式文件、KV、数据库存储经验优先； 6、具有系统性能分析及优化经验者优先； 7、开源社区活跃贡献者优先。
-
-字节跳动存储岗位
-
-https://jobs.bytedance.com/experienced/position?keywords=%E5%AD%98%E5%82%A8&category=6704215862603155720&location=&project=&type=&job_hot_flag=&current=5&limit=10
