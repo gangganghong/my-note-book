@@ -632,6 +632,256 @@ int i;
 
 这是在做什么？
 
+### v16
+
+在IPC中，发送方是谁，接收方又是谁？我发现我不能回答这两个问题。
+
+在linux系统中，一切皆文件。按照这个原则，把tty也纳入文件的范畴。读写tty，也应该通过文件系统。
+
+进程读写tty的流程如下：
+
+1. 进程P调用文件系统，告知文件系统，想读写tty。
+2. 文件系统通知tty，执行读操作。
+3. tty读数据会阻塞，阻塞到什么时候由人什么时候结束在终端的输入决定。文件系统肯定不能因为tty而阻塞，因为还有它还需要处理其他读写操作。
+4. P没有收到要读取的数据，不能执行。我的操作系使用IPC实现系统调用。文件系统不阻塞，进程P必须阻塞。
+5. 什么时候解除P的阻塞？当tty读取数据结束的时候。
+
+### v17
+
+i版代码运行异常：不能切换终端；键盘输入无响应。
+
+键盘中断正常吗？
+
+使用gdb分别在clock_handle、keyboard_handle设置断点，发现键盘中断、时钟中断都是正常的。
+
+分析TestB中打开文件`int fd_stdin  = open(tty_name, O_RDWR);`的流程：
+
+1. open
+2. task_fs
+3. case OPEN--->do_open
+4. open.c#I_CHAR_SPECIAL
+5. task_tty#`case DEV_OPEN`
+
+详细流程：
+
+```c
+// 在 open.c 中的 do_open 中
+if (imode == I_CHAR_SPECIAL) {
+			MESSAGE driver_msg;
+			driver_msg.type = DEV_OPEN;
+			int dev = pin->i_start_sect;
+			driver_msg.DEVICE = MINOR(dev);
+			assert(MAJOR(dev) == 4);
+			assert(dd_map[MAJOR(dev)].driver_nr != INVALID_DRIVER);
+			send_recv(BOTH,
+				  dd_map[MAJOR(dev)].driver_nr,
+				  &driver_msg);
+		}
+```
+
+我猜测dd_map[MAJOR(dev)].driver_nr是TASK_TTY。
+
+结合`driver_msg.type = DEV_OPEN;`，我认为，IPC的发送对象是
+
+```c
+// 在 tty.c 中的 task_tty 中
+// some code
+send_recv(RECEIVE, ANY, &msg);
+// some code
+switch (msg.type) {
+		case DEV_OPEN:
+			reset_msg(&msg);
+			msg.type = SYSCALL_RET;
+			send_recv(SEND, src, &msg);
+			break;
+		case DEV_READ:
+			tty_do_read(ptty, &msg);
+			break;
+		case DEV_WRITE:
+			tty_do_write(ptty, &msg);
+			break;
+		case HARD_INT:
+			/**
+			 * waked up by clock_handler -- a key was just pressed
+			 * @see clock_handler() inform_int()
+			 */
+			key_pressed = 0;
+			continue;
+		default:
+			dump_msg("TTY::unknown msg", &msg);
+			break;
+		}
+```
+
+更具体一些，执行的代码是：
+
+```c
+case DEV_OPEN:
+			reset_msg(&msg);
+			msg.type = SYSCALL_RET;
+			// src 是哪个进程？TASK_FS。
+			// 发送给 open.c 中的 open
+			send_recv(SEND, src, &msg);
+			break;
+```
+
+#### 正确的流程
+
+再梳理一次流程：
+
+1. ```c
+   char tty_name[] = "/dev_tty1";
+   
+   	int fd_stdin  = open(tty_name, O_RDWR);
+   ```
+
+2. ```c
+   // lib/open.c
+   PUBLIC int open(const char *pathname, int flags)
+   {
+   	MESSAGE msg;
+   
+   	msg.type	= OPEN;
+   
+   	msg.PATHNAME	= (void*)pathname;
+   	msg.FLAGS	= flags;
+   	msg.NAME_LEN	= strlen(pathname);
+   
+   	send_recv(BOTH, TASK_FS, &msg);
+   	assert(msg.type == SYSCALL_RET);
+   
+   	return msg.FD;
+   }
+   ```
+
+4. ```c
+   // /Users/cg/data/code/os/yy-os/osfs09/i/fs/main.c
+   PUBLIC void task_fs()
+   {
+   	printl("Task FS begins.\n");
+   
+   	init_fs();
+   
+   	while (1) {
+   		send_recv(RECEIVE, ANY, &fs_msg);
+   
+   		int msgtype = fs_msg.type;
+   		int src = fs_msg.source;
+   		pcaller = &proc_table[src];
+   
+   		switch (msgtype) {
+   		case OPEN:
+        	// do_open，接收一个type是 SYSCALL_RET 的消息，返回一个fd。
+   			fs_msg.FD = do_open();
+   			break;
+   		// some code
+   		
+       // 这段不起眼的代码，根据msg的type来决定是否解除TestB这类调用文件系统的进程。
+       // open解除，read不解除
+   		/* reply */
+   		if (fs_msg.type != SUSPEND_PROC) {
+         // src 是打开中断的进程，例如TestB。
+         // do_open 接收到的消息的type是 SYSCALL_RET ，会执行这里的代码。
+         // src接收到回复它的消息，解除阻塞。
+   			fs_msg.type = SYSCALL_RET;
+   			send_recv(SEND, src, &fs_msg);
+   		}
+   	}
+   }
+   ```
+   
+5. ```c
+   // /Users/cg/data/code/os/yy-os/osfs09/i/fs/open.c
+   PUBLIC int do_open()
+   {
+   	int fd = -1;		/* return value */
+   	// some code
+   
+   	if (pin) {
+   		// some code
+   
+   		if (imode == I_CHAR_SPECIAL) {
+   			MESSAGE driver_msg;
+   			driver_msg.type = DEV_OPEN;
+   			int dev = pin->i_start_sect;
+   			driver_msg.DEVICE = MINOR(dev);
+   			assert(MAJOR(dev) == 4);
+   			assert(dd_map[MAJOR(dev)].driver_nr != INVALID_DRIVER);
+         // 向TTY发送消息，并且接收TTY返回的消息。
+         // TT返回的消息是是什么？
+         // 是 msg.type = SYSCALL_RET;
+   			send_recv(BOTH,
+   				  dd_map[MAJOR(dev)].driver_nr,
+   				  &driver_msg);
+   		}
+   		else if (imode == I_DIRECTORY) {
+   			assert(pin->i_num == ROOT_INODE);
+   		}
+   		else {
+   			assert(pin->i_mode == I_REGULAR);
+   		}
+   	}
+   	else {
+   		return -1;
+   	}
+   
+   	return fd;
+   }
+   ```
+   
+6. ```c
+   // /Users/cg/data/code/os/yy-os/osfs09/i/kernel/tty.c
+   PUBLIC void task_tty()
+   {
+   	TTY *	tty;
+   	MESSAGE msg;
+   
+   	// some code
+   
+   	while (1) {
+   		// some code
+   
+   		send_recv(RECEIVE, ANY, &msg);
+   
+   		int src = msg.source;
+   		assert(src != TASK_TTY);
+   
+   		TTY* ptty = &tty_table[msg.DEVICE];
+   
+   		switch (msg.type) {
+   		case DEV_OPEN:
+   			reset_msg(&msg);
+   			msg.type = SYSCALL_RET;
+         // src 是 FS
+         // 不会阻塞调用文件系统的进程
+   			send_recv(SEND, src, &msg);
+   			break;
+   		case DEV_READ:
+         // src 是 FS
+         // msg->type = SUSPEND_PROC;
+         // 会阻塞调用文件系统的进程
+   			tty_do_read(ptty, &msg);
+   			break;
+   		case DEV_WRITE:
+   			tty_do_write(ptty, &msg);
+   			break;
+   		case HARD_INT:
+   			/**
+   			 * waked up by clock_handler -- a key was just pressed
+   			 * @see clock_handler() inform_int()
+   			 */
+   			key_pressed = 0;
+   			continue;
+   		default:
+   			dump_msg("TTY::unknown msg", &msg);
+   			break;
+   		}
+   	}
+   }
+   ```
+   
+7. 
+
 ## 疑问
 
 ### 段错误
@@ -966,6 +1216,8 @@ https://zh.wikipedia.org/wiki/%E4%B8%BB%E5%BC%95%E5%AF%BC%E8%AE%B0%E5%BD%95
 ctrl + ]
 跳回调用函数的地方
 ctrl + t
+在vim中打开Taglist
+:Tlist
 ```
 
 Markdown 数学
@@ -982,7 +1234,50 @@ grep -r 'hd_info' ./
 cat /proc/devices
 # 查看当前设备的主次设备号
 ls -l /dev
+# 在主机之间复制文件
+scp ./tool.sh root@172.16.64.132:/home/cg/yuyuan-os/osfs09/h/
+# 查找出进程并且kill
+ps -ef | grep bochs | grep -v grep | awk '{print $2}' | xargs kill -9
+
 ```
+
+
+
+#### awk、xargs、grep -v
+
+这几个命令组合起来，用途大，容易写错。注意下面的错误写法和正确写法。
+
+```shell
+# grep -v 的用法，使用两个grep并且用管道连接起来。
+[root@localhost j]# ps -ef | grep bochs | grep -v grep | awk {print $2}
+awk: cmd. line:1: {print
+awk: cmd. line:1:       ^ unexpected newline or end of string
+[root@localhost j]# ps -ef | grep bochs | grep -v grep | awk '{print $2}'
+awk: cmd. line:1: {print $2}�
+awk: cmd. line:1:           ^ invalid char '�' in expression
+[root@localhost j]# ps -ef | grep bochs | grep -v grep | awk '{print $2}'
+296499
+# awk "{print $2}" 是错误的
+[root@localhost j]# ps -ef | grep bochs | grep -v grep | awk "{print $2}"
+cg        296499  296458  0 18:08 pts/0    00:00:00 bochs -f bochsrc
+[root@localhost j]# ps -ef | grep bochs | grep -v grep | awk '{print $2}' | xargs kill -9
+[root@localhost j]# ps -ef | grep bochs | grep -v grep | awk '{print $2}'
+```
+
+
+
+```c
+// grep 显示行号，-n
+// grep 递归查找目录，也就是连子目录也查找，-r
+[root@localhost i]# grep -rn "RESUME" ./*
+Binary file ./a.img matches
+./fs/main.c:63:		case RESUME_PROC:
+./fs/main.c:109:		case RESUME_PROC:
+./include/sys/const.h:143:	SUSPEND_PROC, RESUME_PROC,
+./kernel/tty.c:280:
+```
+
+
 
 ### gdb
 
@@ -2097,6 +2392,182 @@ inode的i_mode是什么？
 这是C语言知识点。我以前理解了，再看到时，又花了很多时间理解。即使不理解也没有关系，我能够正确地使用指针。我不能从汇编的角度去解释变量、指针、指向指针的指针。
 
 第二时间消耗点是：清空根目录。不懂细节，也能从整理体猜测代码的意思。从整体上明白了代码要做什么，又能反过来理解代码细节。
+
+### 2021-06-03 07:45
+
+阅读文件系统和tty。没看懂二者的关系，更没看懂代码细节。耗时1小时26分。
+
+两个时间消耗点：
+
+1. 理清代码流程。仍没有理清。阻碍点是IPC。
+2. 不知道tty接入文件系统后，我在操作系统的使用中能看到什么。
+
+要解决两个问题：
+
+1. 弄清流程。
+2. 让tty能运行。
+   1. 键盘驱动正常吗？
+   2. 能切换终端吗？
+
+### 2021-06-03 09:14
+
+阅读文件系统和tty。无收获。耗时。
+
+做了两件事：
+
+1. 综合使用xargs、awk、grep等查找进程并且杀死这个进程。
+2. 验证了j版代码的时钟中断、键盘中断都在正常运行。
+
+可是，为啥在键盘输入数据没却不在显示器打印出来呢？看来，难题是解决这个问题了。
+
+### 2021-06-03 15:50
+
+理清`TestB中的int fd_stdin  = open(tty_name, O_RDWR);`流程，没有断点验证，是合理猜测的结果。耗费时间50分。
+
+不难，但是要仔细。
+
+我用多个编辑器看代码，在物理机和虚拟机之间切换。使用vim、sublime Text4。
+
+能使用vim的高级功能，差不多能完全脱离那些界面IDE了。
+
+### 2021-06-03 16:47
+
+梳理`int r = read(fd_stdin, rdbuf, 70);`的执行流程，失败了！耗费时间52分。
+
+为什么失败？按照我梳理出来的流程，流程中出现死循环，没有搞清楚tty什么时候等待输入。
+
+### 2021-06-03 17:55
+
+梳理`int r = read(fd_stdin, rdbuf, 70);`的执行流程，失败了！耗费时间1小时20分。
+
+我使用bochs汇编中断点，失败了。
+
+时间全部消耗在设置断点、查看数据。
+
+为啥？太复杂了！cs在变化，我连确定正确的断点地址都做不到。
+
+1. 目前，cs的所有值表示的段地址都是0，直接在反汇编出来的的代码对应的内存地址设置断点就行。
+2. 遇到新问题。sys_sendrec在open之前被多次调用。若在这里设置断点，需要运行很多次才能捕捉到断点。
+3. 手工捕捉断点，实在太麻烦，看能不能用代码来捕捉信息。
+
+这个方法，太复杂了。即使要在汇编代码中断点，也需要先想好断点方案。
+
+原始的调试方法，已经耗费了太多太多时间。我决定，尝试记录日志来查看执行流程。
+
+### 2021-06-03 23:28
+
+于上神的i版代码是能够运行的。只是我没有切换到正确的终端。耗费时间30分。
+
+切换方法：
+
+1. option + Fn + F2
+2. f2
+
+### 2021-06-04 10:47
+
+阅读tty和文件系统代码，有一些进展，耗费时间 2个小时22分。
+
+所做的事分为几个阶段：
+
+1. 验证于上神的代码能不能运行。耗时很少。
+2. 梳理open终端的执行流程。
+   1. 比较费时间。猜测 + 断点验证关键数值 + 笔算，弄清了流程。
+   2. 弄清楚open终端的流程后，很快看明白了read终端、write终端的流程。
+3. write终端的流程。
+   1. 在哪里解除阻塞？书上的解说，加上grep搜索msg的type，让我看明白了解除阻塞的代码。
+4. read终端流程，我仍有疑问。
+   1. 在哪里解除阻塞？
+   2. 我只看到了解除write的阻塞的代码，没有看到解除read的阻塞的代码。
+
+为什么耗费这么多时间？
+
+1. 我觉得，浪费了不少时间，思路不顺畅的时候，我没有条理清晰地考虑问题，好像在走神，或者根据模糊的想法乱看代码。
+2. 看代码，确实非常耗费时间。即使只看一个汉字，也能看上一个小时。做任何事情，只要反复在上面耗，都非常耗费时间。
+3. 不靠谱的心算。
+
+### 2021-06-04 12:07
+
+阅读tty和文件系统代码，明白了解除read 终端的代码。耗费41分，实际只耗费了大概20分钟。
+
+在哪里解除read终端的阻塞？
+
+```c
+PUBLIC void task_tty()
+{
+	// some code
+
+	while (1) {
+		for (tty = TTY_FIRST; tty < TTY_END; tty++) {
+			do {
+				tty_dev_read(tty);
+        // 解除阻塞的代码在tty_dev_write中。
+        // 两种情况下会解除阻塞：1. 读取到换行符；2. 读取到的数据的长度足够。
+				tty_dev_write(tty);
+			} while (tty->ibuf_cnt);
+		}
+	// some code
+	}
+}
+```
+
+为什么能看明白？
+
+1. 休息了一会，碰碰运气再看，想到了新思路。全文检索tty_dev_write，发现了上面的代码。
+2. 理解上面的代码。发现，他能解除read终端的阻塞。
+
+休息 + 猜想 + 验证，解决了问题。
+
+### 2021-06-04 16:32
+
+阅读下面的代码。耗时1个小时36分。
+
+```c
+// /Users/cg/data/code/os/yy-os/osfs09/i/fs/main.c 中的 get_inode
+struct super_block * sb = get_super_block(dev);
+	int blk_nr = 1 + 1 + sb->nr_imap_sects + sb->nr_smap_sects +
+		((num - 1) / (SECTOR_SIZE / INODE_SIZE));
+	RD_SECT(dev, blk_nr);
+	struct inode * pinode =
+		(struct inode*)((u8*)fsbuf +
+				((num - 1 ) % (SECTOR_SIZE / INODE_SIZE))
+				 * INODE_SIZE);
+```
+
+很烦这种问题。之前理解了，再看到时，又耗费这么多时间。
+
+这是什么问题？根据inode在inode-map中的索引计算inode的LBA地址，计算inode的初始地址，获取inode的数据。
+
+为啥耗费这么多时间？理解不了的时候，看了其他凤凰网等无用资讯。理解后，写笔记。
+
+最关键的笔记：num - 1, 确实是bit数量，不过，在这里，应该理解为inode的数量。
+
+### 2021-06-04 18:12
+
+理解了get_inode。耗时2个小时25分。我很不满意这种效率。
+
+时间消耗在：
+
+1. 对inode_table的使用。
+   1. inode_table是内存中缓存inode的区域，避免每次都读硬盘。
+   2. inode_table只缓存正在使用的文件的inode，没有被任何进程使用的文件的inode不会被缓存在inode_table中。
+   3. 我的成见“inode_table缓存了所有文件的inode"让我在错误中徘徊了很久很久。我不知道为啥会有这样的成见。
+2. 从硬盘中读取的inode的默认值。
+   1. 从硬盘中读取的inode可能有默认值，也可能没有默认值。
+   2. 默认值是在new_inode中赋予的，然后保存到硬盘中。
+3. 指针的使用，让从get_inode获取的inode成为一个全局变量。对inode的任何修改实质是对inode_table中inode的修改。我觉得这种用法很危险。
+
+为啥会花这么多时间？
+
+1. 理解不了，我就不停看各种代码，无头苍蝇一般。
+2. 我回忆不起来我所做的每件事，也就是说，我不记得我为啥会花这么多时间。
+   1. 要更加细致地记录我做的事情。
+   2. 理解代码，非常花时间。
+
+### 2021-06-04 21:03
+
+粗略看了一次tty和read、open的流程，对我来说，纠结点仍是”根据indoe在inode-array“中的索引来计算目标inode所在的扇区的地址等和索引、初始值这类有关 尝试。
+
+耗时36分钟。
 
 编译原理：
 
