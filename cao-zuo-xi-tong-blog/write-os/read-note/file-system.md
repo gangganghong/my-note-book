@@ -2513,7 +2513,7 @@ PUBLIC void task_tty()
 为什么能看明白？
 
 1. 休息了一会，碰碰运气再看，想到了新思路。全文检索tty_dev_write，发现了上面的代码。
-2. 理解上面的代码。发现，他能解除read终端的阻塞。
+2. 理解上面的代码。发现，它能解除read终端的阻塞。
 
 休息 + 猜想 + 验证，解决了问题。
 
@@ -2540,6 +2540,14 @@ struct super_block * sb = get_super_block(dev);
 为啥耗费这么多时间？理解不了的时候，看了其他凤凰网等无用资讯。理解后，写笔记。
 
 最关键的笔记：num - 1, 确实是bit数量，不过，在这里，应该理解为inode的数量。
+
+`int blk_nr = 1 + 1 + sb->nr_imap_sects + sb->nr_smap_sects +((num - 1) / (SECTOR_SIZE / INODE_SIZE));`
+
+修改成
+
+`int blk_nr = 1 + 1 + sb->nr_imap_sects + sb->nr_smap_sects +((num - 1) * INODE_SIZE / SECTOR_SIZE);`
+
+更好理解。
 
 ### 2021-06-04 18:12
 
@@ -2568,6 +2576,17 @@ struct super_block * sb = get_super_block(dev);
 粗略看了一次tty和read、open的流程，对我来说，纠结点仍是”根据indoe在inode-array“中的索引来计算目标inode所在的扇区的地址等和索引、初始值这类有关 尝试。
 
 耗时36分钟。
+
+又耗时24分钟读kernel/main.c中TestB的代码。
+
+基本读懂全部文件系统代码后，我忽然不知道接下来我应该做什么。我挑了几段代码，发现并不是我想象中那样全都懂。
+
+还有好大的工作量。整个文件系统，不算简单，各种进程互相调用。我该怎么做？
+
+1. 凭记忆写出文件系统。
+2. 读一块代码，就通过写文章复述。
+3. 完全自己设计文件系统并实现。
+4. 先把日志功能做出来。理清代码执行流程，有时真不容易。
 
 编译原理：
 
