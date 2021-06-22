@@ -30,7 +30,7 @@ IDE0、IDE1。它们位于主板上。
 
 有一组寄存器，同一个寄存器，却有两个不同的名称。读硬盘时，A寄存器叫小A；写硬盘时，A寄存器叫小b。小A和小b，如何体现它们是同一个寄存器呢？操作小A和小B是，都是和同一个端口交互数据。
 
-LBA和CHS。这是两种读写存储工具的方式。CHS，在写loader读取软盘时，我已经用过了，需要计算一番。对人不好，对机器却很友好，因为，存储设备的结构就是那样的，柱面---》磁头---》扇区。
+LBA和CHS。这是两种读写存储工具的方式。CHS，在写loader读取软盘时，我已经用过了，需要计算一番。对人不友好，对机器却很友好，因为，存储设备的结构就是那样的，柱面---》磁头---》扇区。
 
 LBA是对人很友好的寻址方式。对，准确的称呼，应该是寻址方式。
 
@@ -87,7 +87,14 @@ https://web.archive.org/web/20040403173111/http://t13.org/
 
 ![image-20210516220010575](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/read-note/image-20210516220010575.png)
 
+图中第一列的数字，单位是字。
+
+第10个字到第19个字，共10个字，存储的是Serial number。
+
+第27个到第46个字，共20个字，存储的是Model number。
+
 ```c
+// kernel/hd.c
 struct iden_info_ascii {
                 int idx;
                 int len;
@@ -122,6 +129,16 @@ s[i*2] = 0;
 从硬盘中读取到的硬盘数据的单位是字，16个bit，2个字节，大端法。
 
 iinfo[k].len的长度的单位是字节，所以要除以2。
+
+> 和大端法、小端法无关，也和是否是字没有必然关系。
+>
+> Serial number和Model number的字符串是颠倒的。用例子说明更准确。
+>
+> 例如，"World!"，存储在硬盘中的数据却是，“oWlr!d”。
+>
+> 我们的任务就是，把硬盘中的那种字符串还原成"World!"。
+>
+> 这种字符串，每两个字符之间的顺序是正确的，两个字符之间的顺序是颠倒的。每次处理一对，颠倒这一对字符。
 
 ~~内存和CPU中的数据，小端法（高地址数据放在左边，低地址数据放在右边）。~~
 
@@ -200,6 +217,8 @@ https://www.fermimn.edu.it/linux/quarta/x86/outs.htm
    2. 另一个是下一个扩展分区
    3. 这是一个链表。
 
+> 2021-06-16 15:37 文件系统是我一个月前看过的知识。沮丧。分区表，我又理解得不透彻了。
+
 ### v7
 
 设备号。主次设备号。主设备号，识别哪个驱动程序；次设备号，识别哪个硬盘的哪个区。
@@ -239,11 +258,18 @@ Device     Boot  Start    End Sectors   Size Id Type
 
 > 再次证明，笔记，务必要尽量写得详细再详细。上面这段话，我看了很久才写出来。在八天前，我认为，这句话不必写出来，能理所当然地想出来。
 
+
+
+> 上图中的小格子如`hd1a`等，都是逻辑分区。
+>
+> 2021-06-17 14:53 补充。
+
 ### v9
 
 理解了下面这个宏。
 
 ```c
+// NR:Number
 // MAX_PRIM 9
 // NR_PRIM_PER_DRIVE 5
 // MINOR_hd1a 0x10
@@ -273,9 +299,15 @@ x可以是任意值。如果x是1，x+127-x，结果是127，除以64，结果�
       1. 商是0，是master硬盘。
       2. 商是1，是slave硬盘。
 
+这个宏的作用是什么？根据分区号计算出设备号，即第几块硬盘。
+
+> 2021-06-16 15:51 看不懂上面的文字。
+
 ### v10
 
 ```c
+// file:/home/cg/yuyuan-os/osfs10/e/kernel/hd.c
+
 PRIVATE u8              hdbuf[SECTOR_SIZE * 2];
 
 PRIVATE void hd_identify(int drive)
@@ -284,6 +316,7 @@ PRIVATE void hd_identify(int drive)
         cmd.device  = MAKE_DEVICE_REG(0, drive, 0);
         cmd.command = ATA_IDENTIFY;
         hd_cmd_out(&cmd);
+  			// 不理解这个中断
         interrupt_wait();
         port_read(REG_DATA, hdbuf, SECTOR_SIZE);
 
@@ -298,9 +331,12 @@ PRIVATE void hd_identify(int drive)
 }
 ```
 
+> 2021-06-16 16:06 一定要写上代码的文件名。我想在项目中找到代码，却不知道它出自哪个文件。
+
 ### v11
 
 ```c
+// file：/home/cg/yuyuan-os/osfs10/e/kernel/hd.c
 /*****************************************************************************
  *                                partition
  *****************************************************************************/
@@ -314,6 +350,7 @@ PRIVATE void hd_identify(int drive)
 PRIVATE void partition(int device, int style)
 {
 	int i;
+  // 根据设备号ddevice计算出使用哪个硬盘。
 	int drive = DRV_OF_DEV(device);
 	struct hd_info * hdi = &hd_info[drive];
 
@@ -329,6 +366,8 @@ PRIVATE void partition(int device, int style)
 
 			nr_prim_parts++;
 			int dev_nr = i + 1;		  /* 1~4 */
+      // 1. 这是规定。分区表中的表项的结构就是这样的。表项记录了一个分区的开始扇区、拥有的扇区的数量。
+      // 2. 开始扇区，是什么？是绝对LBA还是其他？
 			hdi->primary[dev_nr].base = part_tbl[i].start_sect;
 			hdi->primary[dev_nr].size = part_tbl[i].nr_sects;
 
@@ -367,6 +406,12 @@ PRIVATE void partition(int device, int style)
 
 
 
+> 2021-06-16 16:27 看不懂上面的代码。一个月前，我是看懂了的。
+>
+> 2021-06-17 12:11 仍然看不懂上面的代码。我想，关键是要弄清楚分区的次设备号。 
+
+
+
 一、`partition(device + dev_nr, P_EXTENDED);`，修改成`partition(dev_nr, P_EXTENDED);`行不行？
 
 当dev_nr等于1时，`partition(dev_nr, P_EXTENDED);`是`partition(1, P_EXTENDED);`。
@@ -382,6 +427,33 @@ PRIVATE void partition(int device, int style)
 综合全局考虑后，回答是不行。理由如下：
 
 在`hd_open`中，`partition(drive * (NR_PART_PER_DRIVE + 1), P_PRIMARY);`，NR_PART_PER_DRIVE是4。
+
+> 在`hd_open`中，`partition(drive * (NR_PART_PER_DRIVE + 1), P_PRIMARY);`，NR_PART_PER_DRIVE是4。
+>
+> 这句话没头没尾，很不好理解。
+>
+> ```c
+> PRIVATE void hd_open(int device)
+> {
+>         int drive = DRV_OF_DEV(device);
+>         assert(drive == 0);     /* only one drive */
+> 
+>         hd_identify(drive);
+> 
+>         if (hd_info[drive].open_cnt++ == 0) {
+>                 partition(drive * (NR_PART_PER_DRIVE + 1), P_PRIMARY);
+>                 print_hdinfo(&hd_info[drive]);
+>         }
+> }
+> ```
+>
+> 1. `drive * (NR_PART_PER_DRIVE + 1)`的结果是0或5。
+> 2. 到了partion函数中的`partition(device + dev_nr, P_EXTENDED);`这句，`device`是0或5。
+> 3. 在第2步中的partitiion中，device在[0, 4]或[5, 9]这两个区间。
+> 4. 然后，在partition的DRV_OF_DEV中，计算结果一定是0或1。能识别出是哪块硬盘。
+> 5. 为啥理解起来这么费劲？因为原来记录的笔记省略了上下文。
+>
+> 2021-06-17 14:27 补充。
 
 1. 当drive = 0时，`partition(drive * (NR_PART_PER_DRIVE + 1), P_PRIMARY);` 是 `partition(0, P_PRIMARY);`。
    1. 在`partition(0, P_PRIMARY);`中，
@@ -399,6 +471,32 @@ PRIVATE void partition(int device, int style)
          1. dev_nr的值是`1~~4`。partition的第一个参数总是大于0。
          2. `partition(5 + dev_nr, P_EXTENDED);`中，`int drive = DRV_OF_DEV(0+dev_nr);`的值总是1。
 
+> 重看上面的思考记录，没有一眼看明白。
+>
+> 把`partition(device + dev_nr, P_EXTENDED);`，能修改成`partition(dev_nr, P_EXTENDED);`后，无法根据次设备号识别出是第几块硬盘。因此，不能修改。
+>
+> 2021-06-17 14:27 补充。
+
+
+
+> 想明白了。
+>
+> 每个分区（包括硬盘）都拥有一个独一无二的次设备号。
+>
+> 一个次设备号只能表示一个分区（包括硬盘），不能用一个次设备号既表示分区又表示硬盘。
+>
+> 两块硬盘，主分区，次设备号分别是：0、1、2、3、4、5、6、7、8、9。
+>
+> 扩展分区没有次设备号。
+>
+> 扩展分区被继续分割，存在于扩展分区中的逻辑分区才有分区号。
+>
+> 在前面，我说过，次设备号不能重复。因此，逻辑分区的次设备号应该大于等于10。如果能给等于9，那么，次设备号9指向哪个设备？这再次证明，次设备号和设备（分区）是一一对应的。
+>
+> 之前理解不了分区号，但却没意识到我理解不了的是这个知识点。逐渐确认我的疑惑点后，一举知道了这个问题的答案。找出问题比找出答案更费时。
+>
+> 2021-06-17 14:58 补充。
+
 硬盘最开始的扇区，由三部分组成：
 
 1. 主引导记录：MBR。
@@ -408,6 +506,8 @@ PRIVATE void partition(int device, int style)
 每个EBR中的start_sector的基址都是作为扩展分区的主分区的base地址吗？这是规定，找到资料验证一下就知道了。
 
 子扩展分区是在总扩展分区中创建的，子扩展分区的偏移扇区理应以总扩展分区的绝对扇区 LBA 地址为基准，因此，＂子扩展分区的绝对扇区 LBA 地址＝总扩展分区绝对扇区 LBA 地址＋子扩展分区的偏移扇区”。逻辑分区是在子扩展分区中创建的，逻辑分区的偏移扇区理应以子扩展分区的绝对扇区 LBA 地址为基准，因此，“逻辑分区的绝对扇区 LBA 地址＝子扩展分区绝对扇区 LBA 地址＋逻辑分区偏移扇区“这里的子扩展分区就是当前子扩展分区。
+
+> 2021-06-16 16:29 呵呵。我看不懂自己一个月前写的这段话。
 
 ### v12
 
@@ -434,6 +534,7 @@ PUBLIC struct inode * get_inode(int dev, int num)
 
 	struct inode * p;
 	struct inode * q = 0;
+  // 这种遍历数组的方法，我曾经非常熟悉。现在，又感觉有点陌生了。
 	for (p = &inode_table[0]; p < &inode_table[NR_INODE]; p++) {
 		if (p->i_cnt) {	/* not a free slot */
 			if ((p->i_dev == dev) && (p->i_num == num)) {
@@ -441,6 +542,9 @@ PUBLIC struct inode * get_inode(int dev, int num)
 				p->i_cnt++;
 				return p;
 			}
+      // 我认为，这里应该加上continue
+      // 代入具体数值计算，才能验证是否正确。
+      continue;
 		}
 		else {		/* a free slot */
 			if (!q) /* q hasn't been assigned yet */
@@ -451,6 +555,9 @@ PUBLIC struct inode * get_inode(int dev, int num)
 	if (!q)
 		panic("the inode table is full");
 
+  // 实际上是对inode_table中的对应的元素的修改。
+  // 要注意这里。对指针不熟悉，就会非常困惑。
+  // 使用指针指向inode缓存inode_table的作用，不必显示把更新后的inode保存到inode_table，而是直接读写inode_table中的数据。
 	q->i_dev = dev;
 	q->i_num = num;
 	q->i_cnt = 1;
@@ -470,6 +577,7 @@ PUBLIC struct inode * get_inode(int dev, int num)
 				((num - 1 ) % (SECTOR_SIZE / INODE_SIZE))
 				 * INODE_SIZE);
 	// 仅仅是初始化吗？
+  // 找到这个free的inode，目的就是重新设置它的值。它原来的值是什么，在这个函数中，我不关心，它原来的值没有任何用处。
 	q->i_mode = pinode->i_mode;
 	q->i_size = pinode->i_size;
 	q->i_start_sect = pinode->i_start_sect;
@@ -482,7 +590,7 @@ PUBLIC struct inode * get_inode(int dev, int num)
 
 `int blk_nr = 1 + 1 + sb->nr_imap_sects + sb->nr_smap_sects + ((num - 1) / (SECTOR_SIZE / INODE_SIZE));`中的`((num - 1) / (SECTOR_SIZE / INODE_SIZE))`是什么意思？
 
-​	
+意思是：num对应的inode在inode-array中的位置在哪个扇区(其实就是把num换算成inode-array区域的扇区号）。(2021-06-16 16:48 补充)	
 
 ### v13
 
@@ -556,8 +664,7 @@ RW_SECT需要几个参数？
    10. bytes_left方法，读取数据没有问题。读完数据之后，设置文件的pos，pos = len。
 
 > 自己不会就学习别人的方法，然后记在心中。
-
-#### 于上神的思路
+> 2021-6-16 20:06 看不懂我以前写的笔记。
 
 ### v15
 
@@ -606,6 +713,8 @@ start_sector_no = 1 + 1 + sector_no。读取数据时，初始扇区号是start_
 3. bit_off = off % 8。这是目标bit在字节中的偏移量。
 4. fsbuf[byte_index]是包含目标bit的那个字节。这个字节的第bit_off应该设置成0。
 5. fsbuf[byte_index] = fsbuf[byte_index] & (~1<bit_off).
+
+> 2021-06-16 20:09 完全不清楚我上面写的是什么？那些是我一个多月前写的。
 
 ##### sector-map
 
@@ -808,7 +917,7 @@ case DEV_OPEN:
    			assert(MAJOR(dev) == 4);
    			assert(dd_map[MAJOR(dev)].driver_nr != INVALID_DRIVER);
          // 向TTY发送消息，并且接收TTY返回的消息。
-         // TT返回的消息是是什么？
+         // TTY返回的消息是是什么？
          // 是 msg.type = SYSCALL_RET;
    			send_recv(BOTH,
    				  dd_map[MAJOR(dev)].driver_nr,
@@ -902,6 +1011,52 @@ int main(int argc, char **argv)
 
 1. `""`是一个字符串，作为右值赋值时，它是一个内存地址，等同于`char *tmp = "hello";`中的`tmp`。
 2. `*str2`是什么？对一个指针变量使用`*`，意思是获取某个内存地址标识的内存中的数据。简言之，`*str2`是一个数据。对一个数据再赋值，因而出现段错误。
+3. 对。就是第2点中理解的那样。(2021-06-16 21:59 补充，耗时)
+4. 第3点中的说法，可能不正确。我在《汇编语言程序设计》中找到一句话。
+
+
+
+![image-20210616221404247](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/read-note/image-20210616221404247.png)
+
+由于这几句话，我不能把`movb $0x41, (%eax)`中的`(%eax)` 理解成内存中的数据。
+
+根据编译器运行结果，我只能猜测，修改目标内存的数据引发了错误。目标内存是：把物理内存地址当ds段的偏移量。
+
+> 在这个问题，我已经耗费了太多时间！大部分时间，我在盯着代码发呆。不知道从哪里着手理解。
+>
+> 还不如死记硬背这种C语言语句。
+>
+> 真是得不偿失。投入时间和获得收益完全不成正比！
+>
+> 到此为止吧。这不是重点问题。
+
+
+
+![image-20210616205414949](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/read-note/image-20210616205414949.png)
+
+`movb $0x41, (%eax)`，`(%eax)` 是什么？是内存中的数据，简言之，是数据。把立即数复制给另一个数据，当然不行！
+
+`mov %eax, -0x4(%ebp)`中的`-0x4(%ebp)`是内存地址`0x804853c`。
+
+下面两张图是C代码和它对应的汇编代码。
+
+![image-20210616210242484](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/read-note/image-20210616210242484.png)
+
+
+
+![image-20210616210301150](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/read-note/image-20210616210301150.png)
+
+
+
+看汇编代码，我看不出笔记中的C代码为什么不正确。
+
+另外一组C代码和对应的汇编代码，能正常运行。和第一幅汇编代码图对应的C代码的差异是，本组使用的是数组，而不是指针。
+
+![image-20210616212442877](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/read-note/image-20210616212442877.png)
+
+
+
+![image-20210616212410794](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/read-note/image-20210616212410794.png)
 
 ## 运维
 
@@ -1257,7 +1412,7 @@ awk: cmd. line:1: {print $2}�
 awk: cmd. line:1:           ^ invalid char '�' in expression
 [root@localhost j]# ps -ef | grep bochs | grep -v grep | awk '{print $2}'
 296499
-# awk "{print $2}" 是错误的
+# awk "{print $2}" 是错误的，并没有只输出第二列数据，而是输出了全部数据。
 [root@localhost j]# ps -ef | grep bochs | grep -v grep | awk "{print $2}"
 cg        296499  296458  0 18:08 pts/0    00:00:00 bochs -f bochsrc
 [root@localhost j]# ps -ef | grep bochs | grep -v grep | awk '{print $2}' | xargs kill -9
@@ -1375,6 +1530,14 @@ https://bellard.org/
 汇编指令详细解释
 
 http://css.csail.mit.edu/6.858/2014/readings/i386/REP.htm	
+
+电子书在线阅读网站
+
+https://www.bookstack.cn/explore?cid=28&tab=popular
+
+Linux C编程一站式学习 宋劲杉
+
+https://akaedu.github.io/book/
 
 ## 总结
 
@@ -1519,7 +1682,7 @@ MBR；硬盘分区。有点难理解。
 
 看郑上神的书，和维基百科中的关键语句，才理解。于上神的书，高估了读者，更适合作为“纲”。
 
-这个关键语句告诉我，每个MBR，包含两部分：
+这个关键语句(？哪个关键语句？笔记残缺不全）告诉我，每个EBR，包含两部分：
 
 1. 一个主分区或逻辑分区。
 2. 下一个扩展分区的元数据。
@@ -1535,7 +1698,7 @@ MBR；硬盘分区。有点难理解。
 4. 没有仔细看书？
 5. 分心，杂念比较多。
 
-2021-05-17 14:45
+### 2021-05-17 14:45
 
 主次设备号。大概看明白。
 
@@ -1842,7 +2005,7 @@ for (k = 0; k < sizeof(iinfo)/sizeof(iinfo[0]); k++) {
 
 ### 2021-05-28 22:28
 
-文件系统的实现。耗是1小时43分。
+文件系统的实现。耗时1小时43分。
 
 收效甚微：
 
@@ -2592,3 +2755,188 @@ struct super_block * sb = get_super_block(dev);
 
 中间语言：https://zh.wikipedia.org/wiki/%E4%B8%AD%E9%96%93%E8%AA%9E%E8%A8%80
 
+### 2021-06-16 16:58
+
+重读本笔记的v5-v13，看不懂很多内容。
+
+复习，要复习，要尽早复习。
+
+我其实根本就没有复习过。不能过目不忘，又想记住，不复习怎么行呢？
+
+好不容理解的内容，不复习，过了一个月，这些内容又变成陌生知识了，又要耗费大量时间。
+
+### 2021-06-16 22:18
+
+重读本笔记v13~~疑问。大部分看不懂。最多时间消耗在疑问中的那个简单的C语句。耗时2个小时23分。
+
+下次，要避免在这种小问题、可以暂时搁置的问题上耗费很多时间。·
+
+### 2021-06-16 23:07
+
+读本笔记的所有小结。能看懂一些内容。耗时55分。
+
+坚持写详细的小结，坚持复习笔记。
+
+半个月前、一个月前的笔记，我已经看不懂了。
+
+写了注释的代码在：/home/cg/yuyuan-os/osfs09/e。
+
+### 2021-06-16 23:56
+
+再次验证“疑问》段错误"，无收获。
+
+疑问：
+
+1. 使用`char str[20] = "hello";*str='A';`，对应汇编中的应该是str的内存地址不可访问（实际上不是）。见下面gdb调试截图：
+
+   1. ```shell
+      $3 = (char (*)[10]) 0xffffd36e
+      (gdb) s
+      5		*str = 'A';
+      (gdb) p &str
+      $4 = (char (*)[10]) 0xffffd36e
+      (gdb) x /1wc 0xffffd36e
+      0xffffd36e:	104 'h'
+      (gdb)
+      0xffffd372:	111 'o'
+      (gdb) x /1wc 0xffffd36e
+      0xffffd36e:	104 'h'
+      (gdb) x /1wx 0x6c6c6568
+      0x6c6c6568:	Cannot access memory at address 0x6c6c6568
+      ```
+
+   2. 使用`char *str = "hello";*str='A';`，对应汇编中的应该是str的内存地址可访问。
+
+   3. `*str`的数据类型是char，第1点种的情况，能赋值；第2点种的情况，不能赋值。为什么？
+
+### 2021-06-17 12:12
+
+重看本笔记v1~~~v11，看不懂v11。
+
+先看懂笔记，再重看代码。在笔记中没有看懂的问题，在代码中应该也看不懂。
+
+笔记有比较大的价值，值得看。
+
+### 2021-06-17 14:59
+
+重看v11。理解了次设备号。耗时1个小时28分。又在分区表的base计算上耗费20分钟。
+
+仍有疑问：
+
+```c
+// 设备的次设备号不能重复，但是，这里的dev_nr却包含了[0,9]，如何理解？
+int dev_nr = nr_1st_sub + i;/* 0~15/16~31/32~47/48~63 */
+```
+
+我很纠结分区表的位置。它在逻辑分区中吗？在子扩展分区中吗？在哪里，不知道也不影响理解代码。
+
+通过分区表，能找到本扩展分区中的逻辑分区的偏移量，还能找到下一个子扩展分区的偏移量。
+
+为什么慢？
+
+1. 大量的宏，需要跳来跳去找出数值。计算出结果，把具体数值代入宏表达式中能让我集中精力看表达式的意思。
+2. 不理解，但不知道不理解什么。逐渐、自发地弄明白了我的困惑。
+3. 思路停滞时，不要心算。
+
+> 时间久了，又会忘记，而且还会看不懂这些笔记。
+
+### 2021-06-17 17:41
+
+纠结v13中的get_inode中的这段代码。心算。耗时45+20分。这是非常低效的表现。这是一个出现了很多次的常识。有效时间只有四五分钟。其他时间，我在走神，
+
+自由散漫无章法而又焦虑地想理解这个问题。为啥焦虑？为这样的问题浪费时间。
+
+早点举例子来理解，根本就不会浪费这么多宝贵的时间！
+
+```shell
+// file：/home/cg/yuyuan-os/osfs10/e/fs/main.c#get_inode
+int blk_nr = 1 + 1 + sb->nr_imap_sects + sb->nr_smap_sects +
+		((num - 1) / (SECTOR_SIZE / INODE_SIZE));
+	RD_SECT(dev, blk_nr);
+```
+
+1. num是inode-map中的索引。inode-map的索引的0是保留位，不记录任何inode-array的元素的使用情况。
+2. Inode-array的第0个元素，使用。inode-map中的第1个bit，对应inode-array中的第0个元素。依此类推，num对应inode-array中的第num-1个元素。
+3. RED_SECT的第二个参数blk_nr是目标数据的开始位置，即，从哪里开始读取目标数据。
+4. 省略掉前面的，只分析在inode-array中的位置。
+5. 读取第0个数据，从第0个元素的开头读取。
+6. 读取第1个数据，从第1个元素的开头读取。
+7. 读取第2个数据，从第2个元素的开头读取。
+8. 只有初始序号是0，才能满足上面的要求。
+9. 当初始序号是1，即，第一个数据的序号是1时，如果读取位置是1，会怎样？将会从第1个元素的末尾读取。从第1个元素的末尾读取1个数据，读取的是第2个数据。这不是我期望读取的。
+
+我不满意上面的表述。能用更少的语言说清楚吗？
+
+要读取第N个元素，必须从第N-1个元素的末尾即第N个元素的开头读取。
+
+> 很烦这种小问题。
+>
+> 不该在这种小问题上浪费一个小时。
+
+配合图来表述会很好说。
+
+| A    | B    | C    |
+| ---- | ---- | ---- |
+
+1. 要读取A（第1个）数据，读取位置应该是0*一个数据的长度。
+2. 要读取B（第2个）数据，读取位置应该是1*一个数据的长度。
+3. 要读取C（第3个）数据，读取位置应该是2*一个数据的长度。
+4. 非常容易看出来，要读取第H数据（第N个），读取位置应该是(N-1)*一个数据的长度。
+5. 又很容易看出来，若数据的初始编号是1，读取目标数据的读取位置序号应该是N-1；若数据的初始编号是0，读取目标数据的读取位置序号应该是N；
+
+> 再也不想在这种常识问题上耗费时间了。我宁可死记硬背。
+
+### 2021-06-17 20:30
+
+看本笔记的v12、v13和其他。耗时39分钟。
+
+笑死人了。自己写的笔记，放久了，自己都看不懂。
+
+1. 可能是因为没有记录上下文。
+2. 可能是跟不上当时的思路。
+
+### 2021-06-17 21:03
+
+看get_part_table、partition函数。还算顺利。耗时18分钟。
+
+不想看了。不知道哪天才能写完操作系统。
+
+### 2021-06-17 23:05
+
+看《一个操作系统的实现》文件系统。
+
+不知道从何看起了。
+
+直接看代码？千头万绪，从哪个文件开始看？
+
+还算跟着书的步骤看代码，最合适。
+
+这两天，一直在重复本笔记，效果很差。竟然被自己一个月前的笔记难倒了。好笑不？
+
+今天做了啥？
+
+1. 看完了内存管理的笔记。比较顺利。因为，内容少，四五天前写的。
+2. 文件系统笔记。纠结于分区表、初始序号是0还是1等问题。
+
+进度太慢，心急如焚。
+
+### 2021-06-18 17:17
+
+![image-20210618171756157](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/read-note/image-20210618171756157.png)
+
+看不懂这张图和对它的解释。
+
+它出自《一个操作系统的实现》9.3硬盘参数。
+
+耗时42分。
+
+看不懂。图文对照着看，仍然感觉没有看懂。不想看。又接着看。就这样，42分钟过去了。又耗时若干分。总计1小时13分。
+
+哪里看不懂？我懒得记录。
+
+1. 第一种情况，HD Driver要操作硬盘时，硬盘正在忙，不能执行HD Driver的操作。
+2. 第二种情况，HD Driver要操作硬盘时，硬盘是空闲的，能够立刻执行HD Driver的操作。
+
+孤立地想这个问题，不会得到答案。
+
+也许，这个问题对我而言是陌生领域，我的猜想是错误的。搁置。

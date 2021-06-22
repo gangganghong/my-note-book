@@ -155,6 +155,7 @@ PUBLIC int do_fork()
 	/* duplicate the process table */
 	int pid = mm_msg.source;			// 父进程ID
 	u16 child_ldt_sel = p->ldt_sel;		// 子进程的ldt_sel，ldt选择子。奇怪，子进程哪里来的选择子？在kernel/main.c的kernel_main中初始化的。
+  // 这句的汇编代码太复杂，我看不懂。
 	*p = proc_table[pid];				// 获取父进程，将p指向父进程，复制了父进程的进程表
 	p->ldt_sel = child_ldt_sel;			// 
 	p->p_parent = pid;
@@ -186,6 +187,8 @@ PUBLIC int do_fork()
 
 `*p = proc_table[pid];	`。经过循环后，p的值是什么？是一个空闲进程表的内存地址D。`*p`是什么？它是内存地址为D的一块内存空间，是内存空间而不是内存地址。`*p = proc_table[pid];`的意思是，把`proc_table[pid]`这个数据放到内存地址为D的那块内存中。
 
+> *p 究竟是啥意思？依靠不同上下文摸索指针的含义，毕竟是猜测。还是看得懂汇编更好。
+
 经过这条语句后，内存地址为D的内存中的数据和内存地址为`&proc_table[pid]`的内存中的数据相同。然而，对内存地址为D中的数据的修改完全不会影响内存地址为`&proc_table[pid]`的内存中的数据。
 
 为什么要这样理解？不知道。我根据别人写的代码运行结果来看，就是这样的。这是编译器认可的规则。
@@ -206,6 +209,8 @@ $18 = (struct proc *) 0x3a2f8 <proc_table+3672>
 
 在运行`*p = proc_table[pid];`前后，p的值即内存地址不变，proc_table[pid]的内存地址也不变，而且，和p不同。
 
+> 没有这句注释，只看上面的断点过程，我会看不懂。
+
 `*p = proc_table[pid];`和`p = &proc_table[pid];`执行后，效果不同。
 
 ### 2021-06-05 11:21
@@ -220,7 +225,7 @@ $18 = (struct proc *) 0x3a2f8 <proc_table+3672>
 
 理解do_fork中的`u16 child_ldt_sel = p->ldt_sel;`，耗时51分。
 
-对了，我还看懂了`alloc_mem`，没啥神奇的。设置一个基础值，设置一个派生进程的内存值，第N个进程，它的内存的初始地址是：N * base_memory_address。:w
+对了，我还看懂了`alloc_mem`，没啥神奇的。设置一个基础值，设置一个派生进程的内存值，第N个进程，它的内存的初始地址是：N * base_memory_address。
 
 又在看起来不应该有疑问的地方产生了疑问。而且，去看之前的代码，又发现我看不懂许多代码。可怕而沮丧。
 
@@ -474,6 +479,7 @@ PUBLIC int execv(const char *path, char * argv[])
 		// 阻碍我理解这个函数的问题，先入为主，认为，这个函数构建的供被调用程序echo的main函数调用的栈，应该包含int argc参数。这是错误的。它只构建了包含char **argv的栈。受书中图影响。后来，
 		// 我在do_exec中找到了int argc构建。
 		// 这么细节的问题，我最终会忘记，面试的时候也无法跟别人说。那么，耗费这么多时间弄清楚它的价值是什么？
+    // *q 是什么？只能依靠看各种语句总结出来的经验，*q是一个内存空间。在左边，是内存空间；在右边，是内存空间中的值。
 		*q++ = &arg_stack[stack_len];
 
 		assert(stack_len + strlen(*p) + 1 < PROC_ORIGIN_STACK);
@@ -729,8 +735,8 @@ inodes：0x9E1800。
 
 1. 极度沮丧之后，再次鼓起勇气！老子偏不信这个邪！我就不信我找不出错误！
 2. 一边在纸上记录执行流程，一边想好应该在哪里设置断点。
-3. 收益于第二个步骤，我发现了，不是open、也不是read直接导致assert错误，而是printf中的write(1,其他参数)导致错误。
-4. Write(1)---->do_rdwt中，pcaller->filp[1]是0。
+3. 受益于第二个步骤，我发现了，不是open、也不是read直接导致assert错误，而是printf中的write(1,其他参数)导致错误。
+4. write(1)---->do_rdwt中，pcaller->filp[1]是0。
 5. 由于是从write(1)到do_rdwt，我联想到，在其他进程例如MM进程中，并没有打开终端，所以，pcaller->filp[1]是0x0。
 6. 我又追踪了几次pcaller的变化。可惜，我没有看明白IPC的消息中的source是如何赋值、如何变化的。pcaller和source关系很大。所以，我也没有看明白pcaller是怎么变化的。
 7. 我在MM进程中打开终端文件，再测试，能正常运行了。非常非常高兴。
@@ -776,6 +782,9 @@ inodes：0x9E1800。
 疑点：
 
 1. shell的父进程使用了wait，却没有看到子进程使用exit。
+
+   1. > 在start.asm中调用了exit。(2021-06-17 10:06 补充)
+
 2. 没明白读取参数的C代码。C语言基础不好。
 
 ### 2021-06-11 10:14
@@ -849,7 +858,94 @@ do {
 1. 彻底理解文件系统和内存管理代码的每个细节。
 2. 自己写代码实现文件系统和内存管理。
 
+### 2021-06-17 08:41
 
+看`*p = proc_table[pid];`对应的汇编代码。耗时30分。
+
+放弃了。
+
+我做了什么？
+
+1. 看汇编代码，无法定位这句C代码对应的汇编代码是哪些。定位到`call   c441 <sprintf>`上面，但那些汇编语句，我识别不了。
+
+2. 在第1个步骤，盯着看了很久，无法识别。我决定，在`*p = proc_table[pid];`的前后加上容易识别的C代码。像下面这样：
+
+3. ```c
+   int test_flag_start = 5;
+   *p = proc_table[pid];
+   int test_flag_end = 55;
+   ```
+
+4. 对应的汇编代码，
+
+5. ![image-20210617085042168](/Users/cg/Documents/gitbook/my-note-book/cao-zuo-xi-tong-blog/write-os/read-note/image-20210617085042168.png)
+
+6. 仍然太复杂。我不能识别。放弃。
+
+7. ```c
+   char *str = "he";
+   *str = "A";
+   ```
+
+8. 已经在这个问题上耗费了太多时间。又浪费了30分钟却无收获，永久搁置吧。
+
+   1. 这30分，没有记忆知识。
+   2. 没有思考。
+   3. 盯着不认识的代码心算。
+   4. 总结：徒劳！
+
+### 2021-06-17 09:02
+
+打脸自己！我决定，再花点时间弄明白上一个小结中的问题。耗时43分。能看懂语法，但理解不了它们和C代码的对应关系。
+
+弄懂`imul`、`rep`两个指令，就能看懂这段代码。
+
+```c
+    6d14:       c7 45 d0 05 00 00 00    movl   $0x5,-0x30(%ebp)
+    6d1b:       8b 45 e4                mov    -0x1c(%ebp),%eax
+    6d1e:       8b 55 d8                mov    -0x28(%ebp),%edx
+    6d21:       69 d2 98 01 00 00       imul   $0x198,%edx,%edx
+    6d27:       8d 8a a0 a4 03 00       lea    0x3a4a0(%edx),%ecx
+    6d2d:       89 c2                   mov    %eax,%edx
+    6d2f:       89 cb                   mov    %ecx,%ebx
+    6d31:       b8 66 00 00 00          mov    $0x66,%eax
+    6d36:       89 d7                   mov    %edx,%edi
+    6d38:       89 de                   mov    %ebx,%esi
+    6d3a:       89 c1                   mov    %eax,%ecx
+    6d3c:       f3 a5                   rep movsl %ds:(%esi),%es:(%edi)
+    6d3e:       c7 45 cc 37 00 00 00    movl   $0x37,-0x34(%ebp)
+```
+
+1. `rep movsl %ds:(%esi),%es:(%edi)`，movsb指令用于把字节从ds:si 搬到es:di；rep是repeat的意思，rep movsb 就是多次搬运。搬运前先把字符串的长度存在cx寄存器中，然后重复的次数就是cx寄存器所存数据的值。
+2. `imul   $0x198,%edx,%edx`
+   1. `imul`，带符号整数乘法。
+   2. `mul`，无符号整数乘法。
+   3. 这句的意思是：把`0x198`和`edx`中的数据相乘，把乘积存储到`edx`中。
+3. 关键差异
+   1. `rep movsl %ds:(%esi),%es:(%edi)`
+   2. `movb   $0x41,(%eax)`
+   3. 这两句有差异吗？我认为，无差异啊。
+   4. 根据编译器执行结果看，应该有差异。
+      1. `movb   $0x41,(%eax)`，`(%eax)`是指内存地址是X的内存空间的数据，是数据。
+      2. `rep movsl %ds:(%esi),%es:(%edi)`，`%ds:(%esi)`、`%es:(%edi)`都是内存地址。
+      3. 为什么要这样理解？一种规定吧。只是我觉得这两种汇编的形式很相似，所以，我觉得它们执行的操作相同，其实，可能不同。
+
+这个问题，就到处为止吧。还有那么多重要内容需要去掌握。
+
+### 2021-06-17 10:08
+
+把本笔记复习了一次。耗时31分钟。
+
+我做了什么？
+
+1. 浏览笔记；大部分能看懂；详细的思考过程，不是很懂。
+2. 在`char  *str="hello"; *str = 'A';`这个问题耗费了最多时间，仍没弄明白，还是只能依靠经验去合理猜想。有收获：
+   1. `imul`
+   2. `rep movsb`。
+
+本笔记内容少，间隔时间短，很多东西，我还记得。
+
+复习，浪费了这么多时间。不复习，一个月后再看，那将不是复习，而是重学。
 
 https://kk.org/thetechnium/68-bits-of-unsolicited-advice/
 
