@@ -6,7 +6,7 @@
 
 书中代码在：
 
-mac电脑：/Users/cg/data/code/compile
+mac电脑：/Users/cg/data/code/compiler
 
 虚拟机centos8：
 
