@@ -403,8 +403,6 @@ $1 = {open_cnt = 1, primary_part = {{base = 63, size = 20097}, {base = 20160, si
 1. 不应该只有3个。
 2. 最后一个的size不应该是0。
 
-
-
 ```shell
 (gdb) p hd_info
 $1 = {open_cnt = 1, primary_part = {{base = 63, size = 20097}, {base = 20160, size = 143136}, {base = 0, size = 0}, {base = 0,
